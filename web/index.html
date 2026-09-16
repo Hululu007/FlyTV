@@ -1999,7 +1999,9 @@ function startPlayer(url, title, startMs) {
   $('playerTitle').textContent = title || url;
   setTip('缓冲中…');
   const video = $('video');
-  const isHls = /\.m3u8(\?|$)/i.test(url);
+  // HLS 识别：中继 URL 里的 m3u8 后缀被 URL 编码（.m3u8%3F...），需先解码再判断
+  let isHls = false;
+  try { isHls = /\.m3u8(\?|$|&)/i.test(decodeURIComponent(url)); } catch (e) { isHls = /\.m3u8(\?|$)/i.test(url); }
   if (isHls && window.Hls && Hls.isSupported()) {
     hls = new Hls({ maxBufferLength: 60, backBufferLength: 30 });
     hls.on(Hls.Events.ERROR, (ev, data) => {
