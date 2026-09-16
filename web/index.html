@@ -1319,12 +1319,18 @@ async function resumeHistory(h) {
   } catch (e) {}
   playCtx = {
     site: h.siteKey, flag: h.flag || '', epUrl: h.episodeUrl, epIndex: -1,
-    epName: h.remarks || '', vodId: h.vodId, vodName: h.name || '', vodPic: h.pic || '',
+    epName: (String(h.episodeUrl || '').split('__')[0]) || h.remarks || '',
+    vodId: h.vodId, vodName: h.name || '', vodPic: h.pic || '',
     vodRemarks: h.remarks || '', list: [], pos: h.position || 0, lastReport: 0, autoRetried: false,
   };
   const startMs = h.position > 5000 ? h.position : 0;
   if (startMs > 0) toast('已从 ' + fmtTime(startMs) + ' 继续播放');
   await startEpisode(startMs);
+  // 后台预载集列表：让「上一集/下一集/选集」立即可用（历史地址可能过期，用集名前缀自动匹配新地址）
+  ensurePlayList().then(() => {
+    updatePnButtons();
+    if ($('epsDrawer').classList.contains('show')) renderPlayList();
+  }).catch(() => {});
 }
 function fmtTime(ms) {
   const s = Math.floor(ms / 1000);
@@ -2154,6 +2160,15 @@ async function ensurePlayList() {
     playCtx.vodRemarks = j.remarks || playCtx.vodRemarks;
     playCtx.vodName = j.name || playCtx.vodName;
     playCtx.epIndex = playCtx.list.findIndex(e => (e.url || '') === playCtx.epUrl);
+    if (playCtx.epIndex < 0) {
+      // 历史里的集地址可能是旧 token → 用集名前缀（__ 之前）兜底匹配，并切换为新地址
+      const prefix = String(playCtx.epUrl || '').split('__')[0];
+      if (prefix) {
+        playCtx.epIndex = playCtx.list.findIndex(e =>
+          String(e.url || '').split('__')[0] === prefix || String(e.name || '') === prefix);
+        if (playCtx.epIndex >= 0) playCtx.epUrl = playCtx.list[playCtx.epIndex].url || playCtx.epUrl;
+      }
+    }
     return true;
   } catch (e) { return false; }
 }
