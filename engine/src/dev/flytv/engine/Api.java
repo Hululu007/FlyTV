@@ -57,6 +57,9 @@ public final class Api {
                 case "/api/danmaku": return Danmaku.fetch(p.getOrDefault("name", ""));
                 case "/api/pan/drives": return panDrives();
                 case "/api/pan/logout": return panLogout(p);
+                case "/api/pan/qr": return PanLogin.qrStart().toString();
+                case "/api/pan/qr/poll": return PanLogin.qrPoll(p.getOrDefault("session", "")).toString();
+                case "/api/pan/cookie": return PanLogin.saveManual(p.getOrDefault("drive", "quark"), p.getOrDefault("cookie", "")).toString();
                 case "/api/action/pan-login": return panLogin(p);
                 default: return null;
             }

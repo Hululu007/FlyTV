@@ -13,6 +13,8 @@ FlyTV 把手机上流行的 TVBox / CatVod 生态（jar 爬虫 + 站点配置）
 - **点播 / 分类 / 搜索**：任意 TVBox 配置源（XML/JSON），全站流式聚合搜索（边搜边出）
 - **搜索体验**：爱奇艺联想（支持拼音 `doupo`、`lldq`）+ 360kan 热榜"搜索发现"
 - **网盘播放**：夸克 / UC / 百度登录后可直接播放分享资源
+  - 扫码登录：夸克 App 扫一扫即登录（引擎自动保存 Cookie，无需手动复制）
+  - 手动兜底：任意网盘可「粘贴 Cookie」导入
   - 智能转存：同一会话取新 token、按集名自动匹配（分享被上传者换文件也能恢复）
   - 专用 TVBox 目录 + 复用，避免重复转存
 - **进度记忆**：播放历史、断点续播、与安卓 TVBox / F 影视 局域网同步（`/action?do=sync`）
@@ -130,6 +132,7 @@ jlink --add-modules java.base,java.desktop,java.logging,java.net.http,java.scrip
 - [TVBox](https://github.com/o0HalfLife0o/TVBoxOSC) / [CatVod](https://github.com/CatVodTVOfficial) 生态：站点协议与 jar 爬虫
 - [FongMi/TV](https://github.com/FongMi/TV)：搜索联想与热词等交互参考
 - [Plyr](https://github.com/sampotts/plyr)、[hls.js](https://github.com/video-dev/hls.js)：播放器
+- [qrcodejs](https://github.com/davidshimjs/qrcodejs)：扫码登录二维码渲染（MIT）
 
 ## License
 
