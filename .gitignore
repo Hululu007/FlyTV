@@ -1,0 +1,30 @@
+# ===== 构建产物 =====
+engine/out/
+engine/*.jar
+host/classes/
+host/*.jar
+dist/
+
+# ===== 运行时数据与缓存（不要提交） =====
+jarcache/
+cache/
+*.log
+*.pid
+
+# ===== 敏感信息（网盘 Cookie / 本地配置） =====
+quark_cookie*
+*_cookie.txt
+config.json
+peizhi.json
+
+# ===== 发布包 / 第三方安装包 =====
+*.zip
+*.apk
+*.dex
+
+# ===== IDE / 系统 =====
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+.DS_Store
