@@ -163,6 +163,9 @@ public final class PanLogin {
         try {
             LinkedHashMap<String, String> jar = new LinkedHashMap<>();
             Resp r = get("https://pan.quark.cn/account/info?st=" + enc(ticket) + "&lw=scan", jar);
+            // 关键补全：夸克在请求 drive config 时才下发 __puus 会话 Cookie（缺它则 CDN 拉流 412）
+            try { get("https://drive-pc.quark.cn/1/clouddrive/config?pr=ucpro&fr=pc&uc_param_str=", jar); } catch (Exception ignored) { }
+            try { get("https://pan.quark.cn/", jar); } catch (Exception ignored) { }
             String cookie = joinCookies(jar);
             String nickname = "";
             String member = "";
@@ -180,7 +183,16 @@ public final class PanLogin {
                     if (nickname.isEmpty()) nickname = JsonUtil.str(md, "nickname", "");
                     member = JsonUtil.str(md, "member_type", "");
                 }
+                String cookie2 = joinCookies(jar);
+                if (cookie2.length() > cookie.length()) cookie = cookie2;
             } catch (Exception ignored) { }
+            if (!cookie.contains("__puus")) {
+                // 再补一刀：重复请求 config 一次
+                try { get("https://drive-pc.quark.cn/1/clouddrive/config?pr=ucpro&fr=pc&uc_param_str=", jar); } catch (Exception ignored) { }
+                String cookie3 = joinCookies(jar);
+                if (cookie3.length() > cookie.length()) cookie = cookie3;
+            }
+            Logger.d("PanLogin", "登录 Cookie 长度=" + cookie.length() + " 含__puus=" + cookie.contains("__puus"));
             return new String[]{cookie, nickname, member};
         } catch (Exception e) {
             return new String[]{"", "", ""};
