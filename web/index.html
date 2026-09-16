@@ -2359,6 +2359,98 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') document.querySelectorAll('.speed-menu.show').forEach(m => m.classList.remove('show'));
 });
+// ================= 播放器快捷键 =================
+function showHud(text) {
+  const el = $('volHud');
+  if (!el) { toast(text); return; }
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(volHudTimer);
+  volHudTimer = setTimeout(() => el.classList.remove('show'), 750);
+}
+function setPlayerVolume(val) {
+  val = Math.max(0, Math.min(1, val));
+  try {
+    if (plyr) { plyr.volume = val; plyr.muted = val === 0; }
+    else { const v2 = $('video'); v2.volume = val; v2.muted = val === 0; }
+  } catch (e) {}
+  showVolHud();
+}
+async function togglePip() {
+  const v = $('video');
+  try {
+    if (document.pictureInPictureElement) await document.exitPictureInPicture();
+    else if (v && v.requestPictureInPicture) await v.requestPictureInPicture();
+    else toast('此环境不支持画中画');
+  } catch (e) { toast('画中画不可用'); }
+}
+function toggleDanmakuQuick() {
+  const on = !dmEnabled();
+  localStorage.setItem('tvbox_dm', on ? '1' : '0');
+  updateDmBtn();
+  if (on) { loadDanmaku(); toast('弹幕已开启'); }
+  else { dmList = []; dmIdx = 0; const l = $('dmLayer'); if (l) l.innerHTML = ''; toast('弹幕已关闭'); }
+}
+function cycleSpeed() {
+  if (!plyr) return;
+  const opts = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+  const cur = plyr.speed || 1;
+  const i = Math.max(0, opts.findIndex(x => Math.abs(x - cur) < 0.01));
+  const next = opts[(i + 1) % opts.length];
+  plyr.speed = next;
+  renderSpeedLabel();
+  showHud(next + 'x');
+}
+document.addEventListener('keydown', (e) => {
+  const page = $('playerPage');
+  if (!page || !page.classList.contains('show')) return;      // 仅在播放页生效
+  const tag = ((e.target && e.target.tagName) || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  if ((tag === 'button' || tag === 'a') && (e.key === ' ' || e.key === 'Enter')) return; // 让按钮自己响应
+  if (e.ctrlKey || e.metaKey || e.altKey) return;             // 不抢系统快捷键
+  const v = $('video');
+  if (!v) return;
+  const seek = (d) => {
+    const dur = isFinite(v.duration) ? v.duration : null;
+    let t = v.currentTime + d;
+    if (t < 0) t = 0;
+    if (dur && t > dur - 1) t = dur - 1;
+    v.currentTime = t;
+    showHud((d > 0 ? '⏩ ' : '⏪ ') + Math.abs(d) + 's  ' + fmtTime(t * 1000));
+  };
+  let handled = true;
+  switch (e.key) {
+    case ' ': case 'k': case 'K':
+      if (v.paused) v.play().catch(() => {}); else v.pause();
+      break;
+    case 'ArrowLeft': case 'j': case 'J': seek(-10); break;
+    case 'ArrowRight': case 'l': case 'L': seek(10); break;
+    case 'ArrowUp': setPlayerVolume((plyr ? plyr.volume : v.volume) + 0.05); break;
+    case 'ArrowDown': setPlayerVolume((plyr ? plyr.volume : v.volume) - 0.05); break;
+    case 'm': case 'M': if (plyr) plyr.muted = !plyr.muted; else v.muted = !v.muted; showVolHud(); break;
+    case 'f': case 'F': if (plyr) plyr.fullscreen.toggle(); break;
+    case 'p': case 'P': togglePip(); break;
+    case 'n': case 'N': playNext(); break;
+    case 'b': case 'B': playPrev(); break;
+    case 'd': case 'D': toggleDanmakuQuick(); break;
+    case 's': case 'S': cycleSpeed(); break;
+    case '?':
+      toast('空格=播放暂停 · ←→=快退快进10秒 · ↑↓=音量 · M=静音 · F=全屏 · P=画中画 · N=下一集 · B=上一集 · D=弹幕 · S=倍速 · 0-9=跳进度 · Esc=返回');
+      break;
+    case 'Escape':
+      if (document.fullscreenElement) { try { document.exitFullscreen(); } catch (err) {} handled = false; }
+      else if ($('epsDrawer').classList.contains('show')) { toggleEpsDrawer(); }
+      else if (!document.querySelector('.speed-menu.show')) { closePlayer(); }
+      else handled = false;
+      break;
+    default:
+      if (/^[0-9]$/.test(e.key) && isFinite(v.duration) && v.duration > 0) {
+        v.currentTime = v.duration * (+e.key) / 10;
+        showHud(e.key === '0' ? '⏮ 开头' : ('⏩ ' + (+e.key * 10) + '%'));
+      } else handled = false;
+  }
+  if (handled) e.preventDefault();
+});
 // 同步恢复播放现场：仅当前标签页刷新时生效——首帧直接进入播放页（不闪首页），新开页面不会跳
 restoreNowPlaying().catch(() => {});
 </script>
