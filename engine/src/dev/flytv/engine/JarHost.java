@@ -50,6 +50,8 @@ public final class JarHost {
                 pb.directory(hostDir);
                 pb.environment().put("JAR_HOST_PORT", String.valueOf(port));
                 pb.environment().put("JAR_HOST_DATA", AppPaths.JarCache);
+                // 网盘代理基址：跟随引擎实际端口（支持端口顺延运行）
+                pb.environment().put("JAR_HOST_PROXY_BASE", "http://127.0.0.1:" + WebServer.port() + "/proxy?");
                 // PATH 前置宿主目录：jar 内部调 chmod 等命令时用桩程序兜底
                 String path = pb.environment().get("PATH");
                 pb.environment().put("PATH", hostDir + File.pathSeparator + (path == null ? "" : path));
