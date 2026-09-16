@@ -41,6 +41,7 @@ public final class PanService {
         if (siteKey.isEmpty() || fileId.isEmpty()) throw new Exception("网盘参数缺失（siteKey/fileId）");
         String cookie = readCookie();
         if (cookie.isEmpty()) throw new Exception("未登录夸克账号");
+        syncCookieForHost(cookie);
 
         String cacheKey = shareId + "+" + fileId;
         // 0. 转存缓存命中 → 探测复用
@@ -309,6 +310,21 @@ public final class PanService {
         } catch (Exception e) {
             return "";
         }
+    }
+
+    /** 把引擎侧的有效 Cookie 同步给 jar 宿主（TEMP\\TVBox），保证 jarstream 中继带对 Cookie（CDN 依赖 __puus）。 */
+    static void syncCookieForHost(String cookie) {
+        if (cookie == null || cookie.isEmpty()) return;
+        try {
+            JsonObject j = new JsonObject();
+            j.addProperty("cookie", cookie);
+            String text = j.toString();
+            File tmp = new File(System.getenv("TEMP") == null ? "." : System.getenv("TEMP"), "TVBox");
+            if (!tmp.exists()) tmp.mkdirs();
+            Files.write(new File(tmp, "quark_cookie.txt").toPath(), text.getBytes(StandardCharsets.UTF_8));
+            Files.write(new File(tmp, "quark_cookie").toPath(), text.getBytes(StandardCharsets.UTF_8));
+            Logger.d("QuarkPlay", "Cookie 已同步给宿主（" + cookie.length() + " 字符, __puus=" + cookie.contains("__puus") + "）");
+        } catch (Exception ignored) { }
     }
 
     // ---------- 缓存 ----------
