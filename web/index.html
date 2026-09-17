@@ -496,7 +496,7 @@
     .search-hero { margin-top: 4vh; }
   }
 </style>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem('tvbox_theme')||'dark';}catch(e){}</script>
+<script>try{var t=localStorage.getItem('tvbox_theme');document.documentElement.dataset.theme=t||'light';}catch(e){document.documentElement.dataset.theme='light';}</script>
 </head>
 <body>
 <div class="app">
@@ -1580,7 +1580,7 @@ function pollPan(times) {
 
 // ---------- 外观主题 ----------
 const THEMES = [
-  { id: 'dark',  name: '默认紫', c1: '#6366f1', c2: '#8b5cf6' },
+  { id: 'dark',  name: '暗夜紫', c1: '#6366f1', c2: '#8b5cf6' },
   { id: 'blue',  name: '深海蓝', c1: '#2563eb', c2: '#60a5fa' },
   { id: 'gold',  name: '暗夜金', c1: '#d97706', c2: '#fbbf24' },
   { id: 'green', name: '森野绿', c1: '#059669', c2: '#34d399' },
@@ -1593,7 +1593,7 @@ function applyTheme(id) {
 }
 function renderThemeRow() {
   const row = $('themeRow'); if (!row) return;
-  const cur = document.documentElement.dataset.theme || 'dark';
+  const cur = document.documentElement.dataset.theme || 'light';
   row.innerHTML = THEMES.map(t => `<span class="theme-chip${t.id === cur ? ' on' : ''}" onclick="applyTheme('${t.id}')"><i class="sw" style="background:linear-gradient(135deg,${t.c1},${t.c2})"></i>${t.name}</span>`).join('');
 }
 
