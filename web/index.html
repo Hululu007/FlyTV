@@ -756,6 +756,32 @@
           </div>
 
           <div class="scard">
+            <h3>数据同步（多设备一键搬家）</h3>
+            <div class="srow">
+              <span class="k">同步地址（WebDAV）</span>
+              <span class="v" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+                <input id="syncUrl" class="cfg-in" style="width:340px" placeholder="http://账号:密码@主机:端口/dav/backup.dat">
+              </span>
+            </div>
+            <div class="srow">
+              <span class="k">同步口令（加密用）</span>
+              <span class="v" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+                <input id="syncPass" class="cfg-in" type="password" placeholder="留空 = 不修改已保存的口令">
+              </span>
+            </div>
+            <div class="srow">
+              <span class="k">一键同步</span>
+              <span class="v" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+                <button class="btn ghost" onclick="saveSyncCfg()">保存配置</button>
+                <button class="btn" onclick="syncUpload()">⬆️ 上传到云端</button>
+                <button class="btn ghost" onclick="syncDownload()">⬇️ 从云端下载</button>
+              </span>
+            </div>
+            <div class="srow"><span class="k">状态</span><span class="v" id="syncStatus">-</span></div>
+            <div class="dim small">内容：点播配置 + 网盘登录（夸克/UC/百度/阿里）+ 引擎设置 + 历史 + 收藏。上传前 AES-256 加密（云端只存密文）；下载会覆盖本机配置与登录（自动备份 .bak），历史/收藏按时间合并。口令丢失无法解密，请牢记。</div>
+          </div>
+
+          <div class="scard">
             <h3>关于</h3>
             <div class="srow"><span class="k">形态</span><span class="v">本地后台引擎 + Web 前台</span></div>
             <div class="srow"><span class="k">引擎端口</span><span class="v">9978 (API/Web) / 9790 (中继)</span></div>
@@ -1637,6 +1663,55 @@ function pollPan(times) {
   }, 3000);
 }
 
+// ---------- 数据同步 ----------
+async function loadSyncStatus() {
+  try {
+    const j = await api('sync/status');
+    if ($('syncUrl') && document.activeElement !== $('syncUrl')) $('syncUrl').value = j.url || '';
+    const parts = [j.url ? '已配置' : '未配置'];
+    if (j.lastUp) parts.push('上次上传 ' + new Date(+j.lastUp).toLocaleString());
+    if (j.lastDown) parts.push('上次下载 ' + new Date(+j.lastDown).toLocaleString());
+    $('syncStatus').textContent = parts.join(' · ');
+  } catch (e) { const el = $('syncStatus'); if (el) el.textContent = '读取失败'; }
+}
+async function syncSaveCfg() {
+  const url = ($('syncUrl').value || '').trim();
+  const pass = ($('syncPass').value || '');
+  const j = await apiPost('sync/save', { url, pass });
+  if (j.error) throw new Error(j.error);
+  $('syncPass').value = '';
+  return j;
+}
+async function saveSyncCfg() {
+  if (!($('syncUrl').value || '').trim()) { toast('请填写同步地址'); return; }
+  try { await syncSaveCfg(); toast('同步配置已保存'); loadSyncStatus(); }
+  catch (e) { toast('保存失败: ' + e.message); }
+}
+async function syncUpload() {
+  if (!($('syncUrl').value || '').trim()) { toast('请先填写同步地址'); return; }
+  try {
+    await syncSaveCfg();
+    toast('正在加密上传…');
+    const j = await apiPost('sync/upload', {});
+    if (j.error) { toast('上传失败: ' + j.error); return; }
+    toast('✅ 已上传（' + Math.round((j.size || 0) / 1024) + ' KB 密文，' + (j.count || 0) + ' 项）');
+    loadSyncStatus();
+  } catch (e) { toast('上传失败: ' + e.message); }
+}
+async function syncDownload() {
+  if (!($('syncUrl').value || '').trim()) { toast('请先填写同步地址'); return; }
+  if (!confirm('从云端下载会覆盖本机的：点播配置、网盘登录、引擎设置（自动备份 .bak）；\n历史与收藏会合并。\n\n确定继续？')) return;
+  try {
+    await syncSaveCfg();
+    toast('正在下载并还原…');
+    const j = await apiPost('sync/download', {});
+    if (j.error) { toast('下载失败: ' + j.error); return; }
+    toast('✅ 已还原 ' + (j.applied || 0) + ' 项，页面即将刷新');
+    loadSyncStatus();
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) { toast('下载失败: ' + e.message); }
+}
+
 // ---------- 外观主题 ----------
 const THEMES = [
   { id: 'dark',  name: '暗夜紫', c1: '#6366f1', c2: '#8b5cf6' },
@@ -1660,6 +1735,7 @@ function renderThemeRow() {
 let devList = [];
 async function loadSettings() {
   renderThemeRow();
+  loadSyncStatus();
   try {
     const j = await api('settings');
     // 配置下拉（自定义面板，替代原生 select）

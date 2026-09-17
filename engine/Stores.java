@@ -21,6 +21,15 @@ public final class Stores {
     public static long historyRevision() { return historyRevision; }
     public static long keepRevision() { return keepRevision; }
 
+    /** 清空内存缓存（云同步还原后强制重新读盘）。 */
+    public static void clearCache() {
+        synchronized (LOCK) {
+            configs = null;
+            histories = null;
+            keeps = null;
+        }
+    }
+
     private static File configFile() { return new File(AppPaths.Root, "configs.json"); }
     private static File historyFile() { return new File(AppPaths.Root, "history.json"); }
     private static File keepFile() { return new File(AppPaths.Root, "keep.json"); }

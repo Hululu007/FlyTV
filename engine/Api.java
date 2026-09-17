@@ -53,6 +53,10 @@ public final class Api {
                 case "/api/config/select": return configSelect(p);
                 case "/api/config/delete": return configDelete(p);
                 case "/api/cache/clear": return cacheClear(p);
+                case "/api/sync/status": return Sync.statusJson();
+                case "/api/sync/save": return Sync.saveJson(p.getOrDefault("url", ""), p.getOrDefault("pass", ""));
+                case "/api/sync/upload": return Sync.uploadJson();
+                case "/api/sync/download": return Sync.downloadJson();
                 case "/api/device/scan": return deviceScan();
                 case "/api/device/sync": return deviceSync(p);
                 case "/api/danmaku": return Danmaku.fetch(p.getOrDefault("name", ""));
