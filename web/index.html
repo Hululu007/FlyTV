@@ -1216,7 +1216,9 @@ async function pollSearch() {
     renderSearchResult();
     if (j.done) {
       clearInterval(searchPollTimer); searchPollTimer = null;
-      if (searchState.groups.size === 0) {
+      let anyRes = false;
+      searchState.groups.forEach(l => { if (l && l.length) anyRes = true; });
+      if (!anyRes) {
         // 完整标题（如"斗破苍穹 特别篇3"）搜不到 → 自动用去后缀的基名重搜一次
         const base = baseTitle(searchState.wd || '');
         if (base && base !== String(searchState.wd || '').trim() && !searchState.fallbackTried) {
@@ -1244,12 +1246,16 @@ function searchAllItems() {
   return arr;
 }
 function renderSearchChips() {
-  if (!searchState || searchState.groups.size === 0) return;
+  if (!searchState) return;
   const box = $('searchChips');
+  // 只展示"搜出来了结果"的分类；空分类不占位
+  const groups = [];
+  searchState.groups.forEach((list, site) => { if (list && list.length) groups.push([site, list]); });
+  if (!groups.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
   box.style.display = 'flex';
   const all = searchAllItems().length;
   let html = `<span class="site-chip ${searchSiteFilter === '' ? 'active' : ''}" data-site="">全部 <i>${all}</i></span>`;
-  searchState.groups.forEach((list, site) => {
+  groups.forEach(([site, list]) => {
     html += `<span class="site-chip ${searchSiteFilter === site ? 'active' : ''}" data-site="${esc(site)}">${esc(site)} <i>${list.length}</i></span>`;
   });
   box.innerHTML = html;
