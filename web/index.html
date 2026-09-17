@@ -381,7 +381,7 @@
   .player .plyr { --plyr-color-main: #8b5cf6; --plyr-video-control-color-hover: #fff; --plyr-range-thumb-height: 12px; --plyr-range-track-height: 5px; }
   /* 播放信息标签已移至顶栏（见 .player .bar 规则） */
   .player .tip {
-    color: var(--text2); font-size: 14px;
+    color: #f2f4f8; font-size: 14px;
     position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
     background: rgba(0,0,0,.65); padding: 12px 20px; border-radius: 10px; backdrop-filter: blur(8px);
     max-width: 80%; text-align: center; z-index: 8;
@@ -455,6 +455,18 @@
   /* 正在播放的集数选中态（详情页 + 抽屉通用） */
   .ep.active { border-color: rgba(124,108,245,.75); background: rgba(124,108,245,0.22); color: var(--text); }
   .ep.active .mtxt::before { content: "▶ "; color: var(--accent2); font-size: 10px; }
+
+  /* 播放页始终处于暗色场景：文字固定浅色（避免亮色主题下黑字黑底看不见） */
+  .player .bar .ttl { color: rgba(255,255,255,.76); }
+  .player .pbtn { color: #fff; background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.16); }
+  .player .pbtn:hover { background: rgba(255,255,255,.18); }
+  .player .btn.ghost { color: #e8eaf0; border-color: rgba(255,255,255,.18); }
+  .player .btn.ghost:hover { background: rgba(255,255,255,.14); }
+  .player .speed-menu .sp-opt { color: rgba(255,255,255,.78); }
+  .player .speed-menu .sp-opt:hover, .player .speed-menu .sp-opt.on { color: #fff; }
+  .player .speed-menu .dm-label { color: rgba(255,255,255,.5); }
+  .eps-drawer-head { color: #eef0f4; }
+  .eps-drawer-body .ep.active { color: #fff; }
 
   .toast {
     position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%);
@@ -1841,9 +1853,13 @@ async function retryCurrent(auto) {
 function scheduleRetry(reason) {
   if (!playCtx) return;
   const msg = String(reason || '');
-  if (/412|风控|转存失败|41013|限流|频繁|403/.test(msg)) {
-    setTip(esc('播放失败：' + msg) +
-      '<br><span style="font-size:12px;color:rgba(255,255,255,.6)">（夸克风控/转存受限中——已停止自动重试，避免加重限制）</span><br>' +
+  // 不可自愈类：风控 / 文件被删 / 分享失效 → 停止自动重试，给手动操作
+  if (/412|风控|转存失败|41013|限流|频繁|403|失效|删除|not found|21001|获取视频流失败|未找到该集文件/.test(msg)) {
+    const dead = /失效|删除|not found|21001|获取视频流失败|未找到该集文件/.test(msg);
+    setTip(esc(msg) +
+      '<br><span style="font-size:12px;color:rgba(255,255,255,.6)">' +
+      (dead ? '（该文件已从网盘失效/被删——重试无用，建议返回换线路或换其他源）'
+            : '（夸克风控/转存受限中——已停止自动重试，避免加重限制）') + '</span><br>' +
       '<button class="btn sm" style="margin-top:10px" onclick="retryCurrent()">🔄 仍要重试</button>' +
       '<button class="btn ghost sm" style="margin-top:10px;margin-left:8px" onclick="closePlayer()">返回换线路</button>', true);
     return;
