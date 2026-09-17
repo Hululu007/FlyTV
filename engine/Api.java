@@ -58,8 +58,8 @@ public final class Api {
                 case "/api/danmaku": return Danmaku.fetch(p.getOrDefault("name", ""));
                 case "/api/pan/drives": return panDrives();
                 case "/api/pan/logout": return panLogout(p);
-                case "/api/pan/qr": return PanLogin.qrStart().toString();
-                case "/api/pan/qr/poll": return PanLogin.qrPoll(p.getOrDefault("session", "")).toString();
+                case "/api/pan/qr": return PanLogin.qrStart(p.getOrDefault("drive", "quark")).toString();
+                case "/api/pan/qr/poll": return PanLogin.qrPoll(p.getOrDefault("drive", "quark"), p.getOrDefault("session", "")).toString();
                 case "/api/pan/cookie": return PanLogin.saveManual(p.getOrDefault("drive", "quark"), p.getOrDefault("cookie", "")).toString();
                 case "/api/action/pan-login": return panLogin(p);
                 default: return null;
@@ -614,6 +614,7 @@ public final class Api {
         arr.add(panDrive("quark", "夸克网盘", "quark_cookie"));
         arr.add(panDrive("uc", "UC网盘", "uc_cookie"));
         arr.add(panDrive("baidu", "百度网盘", "baidu_cookie"));
+        arr.add(panDrive("ali", "阿里云盘", "ali_cookie"));
         JsonObject o = new JsonObject();
         o.add("drives", arr);
         return o.toString();
