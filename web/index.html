@@ -603,7 +603,7 @@
 
       <!-- 网盘登录 -->
       <div class="panel" id="panelPan">
-        <div class="title-row">网盘登录 <button class="btn ghost sm" onclick="loadPan()">刷新</button></div>
+        <div class="title-row">网盘登录 <button class="btn ghost sm" onclick="openPanel(window._prevPanel || 'vod')">← 返回</button> <button class="btn ghost sm" onclick="loadPan()">刷新</button></div>
         <div class="cards" id="panCards"></div>
         <div style="color:var(--text3);font-size:12px;margin-top:14px;max-width:760px">
           扫码登录：夸克 / 百度 / 阿里云盘 点「扫码登录」后用对应 App 扫描即可，引擎自动保存凭证；UC 网盘可点「粘贴 Cookie」手动导入。
@@ -853,6 +853,7 @@ async function apiPost(path, params) { return api(path, params); }
 
 // ---------- 面板切换 ----------
 function openPanel(name) {
+  if (name !== curPanel) window._prevPanel = curPanel;
   curPanel = name;
   document.querySelectorAll('.nav-item').forEach(x => x.classList.toggle('active', x.dataset.panel === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('show'));
@@ -1497,8 +1498,8 @@ async function loadKeep() {
 
 // ---------- 网盘登录 ----------
 const panIcons = { quark: '⚡', uc: '🌀', baidu: '🐾', ali: '☁️' };
-const panQrApps = { quark: '夸克 App', baidu: '百度 App', ali: '阿里云盘 App' };
-const panQrDrives = ['quark', 'baidu', 'ali'];
+const panQrApps = { quark: '夸克 App', baidu: '百度 App', ali: '阿里云盘 App', uc: 'UC网盘 App' };
+const panQrDrives = ['quark', 'baidu', 'ali', 'uc'];
 async function loadPan() {
   const box = $('panCards');
   box.innerHTML = '<div class="status">读取中…</div>';

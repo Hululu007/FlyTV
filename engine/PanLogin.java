@@ -94,10 +94,11 @@ public final class PanLogin {
         return new String(bos.toByteArray(), StandardCharsets.UTF_8);
     }
 
-    /** 生成二维码会话（drive: quark 夸克 / baidu 百度 / ali 阿里云盘）。 */
+    /** 生成二维码会话（drive: quark 夸克 / baidu 百度 / ali 阿里云盘 / uc UC网盘）。 */
     public static JsonObject qrStart(String drive) throws Exception {
         if ("baidu".equals(drive)) return qrStartBaidu();
         if ("ali".equals(drive) || "aliyun".equals(drive)) return qrStartAli();
+        if ("uc".equals(drive)) return qrStartUC();
         return qrStartQuark();
     }
 
@@ -105,6 +106,7 @@ public final class PanLogin {
     public static JsonObject qrPoll(String drive, String session) throws Exception {
         if ("baidu".equals(drive)) return qrPollBaidu(session);
         if ("ali".equals(drive) || "aliyun".equals(drive)) return qrPollAli(session);
+        if ("uc".equals(drive)) return qrPollUC(session);
         return qrPollQuark(session);
     }
 
@@ -356,9 +358,81 @@ public final class PanLogin {
         return out;
     }
 
+    // ================= UC网盘扫码 =================
+    // 与夸克同源（api.open.uc.cn CAS，client_id=381）：token → 手机 UC 扫 → service_ticket
+    //      → drive.uc.cn/account/info 换 Cookie（缺 __puus 时补 config 一次）
+    private static final ConcurrentHashMap<String, Object[]> UC = new ConcurrentHashMap<>(); // session -> [token, jar]
+
+    static JsonObject qrStartUC() throws Exception {
+        LinkedHashMap<String, String> jar = new LinkedHashMap<>();
+        String requestId = UUID.randomUUID().toString();
+        Resp r = post("https://api.open.uc.cn/cas/ajax/getTokenForQrcodeLogin?__dt=" + (1000 + (int) (Math.random() * 99000)) + "&__t=" + System.currentTimeMillis(),
+                "client_id=381&v=1.2&request_id=" + enc(requestId), "application/x-www-form-urlencoded", jar);
+        JsonObject o = JsonUtil.parseObj(r.body);
+        JsonObject data = o == null ? null : o.getAsJsonObject("data");
+        JsonObject members = data == null ? null : data.getAsJsonObject("members");
+        String token = members == null ? "" : JsonUtil.str(members, "token", "");
+        if (token.isEmpty()) throw new Exception("获取UC二维码失败（接口返回异常，稍后再试）");
+        String session = UUID.randomUUID().toString().replace("-", "");
+        UC.put(session, new Object[]{token, jar});
+        JsonObject out = new JsonObject();
+        out.addProperty("session", session);
+        out.addProperty("url", "https://su.uc.cn/1_n0ZCv?uc_param_str=dsdnfrpfbivesscpgimibtbmnijblauputogpintnwktprchmt&token=" + enc(token)
+                + "&client_id=381&uc_biz_str=" + enc("S:custom|C:titlebar_fix"));
+        return out;
+    }
+
+    static JsonObject qrPollUC(String session) throws Exception {
+        JsonObject out = new JsonObject();
+        Object[] st = session == null ? null : UC.get(session);
+        if (st == null) {
+            out.addProperty("status", "expired");
+            out.addProperty("message", "二维码会话已失效，请刷新");
+            return out;
+        }
+        String token = String.valueOf(st[0]);
+        @SuppressWarnings("unchecked")
+        LinkedHashMap<String, String> jar = (LinkedHashMap<String, String>) st[1];
+        Resp r = post("https://api.open.uc.cn/cas/ajax/getServiceTicketByQrcodeToken?__dt=" + (1000 + (int) (Math.random() * 99000)) + "&__t=" + System.currentTimeMillis(),
+                "client_id=381&v=1.2&request_id=" + enc(UUID.randomUUID().toString()) + "&token=" + enc(token),
+                "application/x-www-form-urlencoded", jar);
+        JsonObject o = JsonUtil.parseObj(r.body);
+        int status = o == null ? 0 : JsonUtil.integer(o, "status", 0);
+        String ticket = "";
+        if (status == 2000000) {
+            JsonObject data = o.getAsJsonObject("data");
+            JsonObject members = data == null ? null : data.getAsJsonObject("members");
+            ticket = members == null ? "" : JsonUtil.str(members, "service_ticket", "");
+        }
+        if (!ticket.isEmpty()) {
+            get("https://drive.uc.cn/account/info?st=" + enc(ticket), jar);
+            if (!joinCookies(jar).contains("__puus")) {
+                try { get("https://drive.uc.cn/1/clouddrive/config?pr=ucpro&fr=pc&uc_param_str=", jar); } catch (Exception ignored) { }
+            }
+            String cookie = joinCookies(jar);
+            saveManual("uc", cookie);
+            UC.remove(session);
+            out.addProperty("status", "ok");
+            out.addProperty("message", "登录成功");
+            out.addProperty("nickname", "");
+            out.addProperty("member", "");
+            return out;
+        }
+        if (status == 50004002 || status == 50004003 || status == 50004004) {
+            UC.remove(session);
+            out.addProperty("status", "expired");
+            out.addProperty("message", status == 50004002 ? "二维码已过期，请刷新" : status == 50004004 ? "已取消登录" : "登录失败，请重试");
+            return out;
+        }
+        String msg = status != 0 && o != null ? JsonUtil.str(o, "message", "") : "";
+        boolean generic = msg.isEmpty() || "ok".equals(msg) || "Query result is empty".equalsIgnoreCase(msg);
+        out.addProperty("status", "wait");
+        out.addProperty("message", generic ? "等待扫码…" : msg);
+        return out;
+    }
+
     /** 带自定义读超时的 GET（用于长轮询接口，如百度 unicast）。 */
-    static Resp getTO(String url, LinkedHashMap<String, String> jar, int readMs) throws Exception {
-        Resp out = new Resp();
+    static Resp getTO(String url, LinkedHashMap<String, String> jar, int readMs) throws Exception {        Resp out = new Resp();
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         try {
             c.setInstanceFollowRedirects(false);
