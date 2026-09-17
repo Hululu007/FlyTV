@@ -1319,8 +1319,8 @@ async function openDetail(id, name, siteKey) {
       const dp = $('dPic'); dp.dataset.r = '0'; delete dp.dataset.base; dp.src = pic(j.pic); dp.style.display = 'block';
       $('detailBg').style.backgroundImage = `url("${pic(j.pic)}")`;
     }
-    $('dMeta').textContent = [j.year, j.area, j.type, j.remarks].filter(Boolean).join(' · ');
-    $('dDesc').textContent = (j.content || '').replace(/<[^>]+>/g, '');
+    $('dMeta').textContent = [j.year, j.area, j.typeName || j.type, j.remarks].filter(Boolean).join(' · ');
+    $('dDesc').textContent = (j.desc || j.content || '').replace(/<[^>]+>/g, '');
     try {
       const keeps = await api('keep');
       const hit = (keeps.list || []).some(k => k.key === $('dKeepBtn').dataset.key);
