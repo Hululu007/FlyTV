@@ -16,7 +16,12 @@ public final class PlayService {
             JsonObject pr = SiteService.player(site, flag, epUrl);
             if (pr.has("error")) return pr;
             String url = JsonUtil.str(pr, "url", "");
-            if (url.isEmpty()) return err("未获取到播放地址");
+            if (url.isEmpty()) {
+                // 优先用蜘蛛给的具体原因（未登录/资源异常），避免只报"未获取到播放地址"
+                String m = JsonUtil.str(pr, "msg", "");
+                if (m.isEmpty()) m = JsonUtil.str(pr, "errMsg", "");
+                return err(m.isEmpty() ? "未获取到播放地址" : m);
+            }
             if (PanService.isPanUrl(url)) {
                 String relay = PanService.resolveToRelay(url);
                 JsonObject o = new JsonObject();

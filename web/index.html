@@ -1900,9 +1900,9 @@ function scheduleRetry(reason) {
   if (!$('playerPage').classList.contains('show')) return; // 已返回：不再调度重试
   const msg = String(reason || '');
   // 登录类 / 拿不到地址类：不重试，直接引导（未登录网盘或资源异常，重试无意义）
-  if (/未登录|请先登录|登录已(经)?过期|auth expired|require login|登录失效|未授权|未获取到播放地址/.test(msg)) {
-    const noUrl = /未获取到播放地址/.test(msg);
-    showPlayIssue('login', noUrl ? '该线路没能获取到播放地址（可能未登录网盘或资源异常），可换线路或先登录网盘' : '网盘登录已过期或未登录');
+  if (/未登录|请先登录|请前往|登录已(经)?过期|auth expired|require login|登录失效|未授权|未获取到播放地址/.test(msg)) {
+    const noUrl = /未获取到播放地址/.test(msg) && !/未登录|请前往/.test(msg);
+    showPlayIssue('login', noUrl ? '该线路没能获取到播放地址（可能未登录网盘或资源异常），可换线路或先登录网盘' : msg.replace(/^解析失败：/, ''));
     return;
   }
   // 不可自愈类：风控 / 文件被删 / 分享失效 → 停止自动重试，给手动操作
