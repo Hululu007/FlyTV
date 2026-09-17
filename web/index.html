@@ -350,7 +350,7 @@
     transition: background .15s, border-color .15s, color .15s, transform .15s;
   }
   .ep .mtxt { display: inline-block; white-space: nowrap; }
-  .ep .mtxt.roll { animation: marquee 2.2s linear infinite; }
+  .ep .mtxt.roll { animation: marquee 6s linear infinite; will-change: transform; }
   .ep:hover { background: rgba(124,108,245,0.16); border-color: rgba(124,108,245,.5); color: var(--text); transform: translateY(-1px); }
   @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   @media (max-width: 640px) { .episodes { grid-template-columns: repeat(2, 1fr); } }
@@ -1294,6 +1294,12 @@ function onCardClick(v, siteKey) {
   openDetail(v.id, v.name, siteKey);
 }
 
+// 跑马灯速度：约 50px/秒（名字越长跑得越久，节奏恒定不忽快忽慢）
+function marqueeDur(sp) {
+  const w = sp.scrollWidth / 2; // 内容已复制两份，取单份宽度
+  return Math.max(4, Math.round(w / 50 * 10) / 10) + 's';
+}
+
 // ---------- 详情 ----------
 async function openDetail(id, name, siteKey) {
   const page = $('detailPage');
@@ -1354,6 +1360,7 @@ function renderEps(flag, vod) {
       const avail = d.clientWidth - 28;
       if (sp.scrollWidth > avail + 2) {
         sp.textContent = name + '　　' + name;
+        sp.style.animationDuration = marqueeDur(sp);
         sp.classList.add('roll');
       }
     };
@@ -2302,6 +2309,7 @@ function renderPlayList() {
       el.onmouseenter = () => {
         if (sp.scrollWidth > el.clientWidth - 8) {
           sp.textContent = full + '　　' + full;
+          sp.style.animationDuration = marqueeDur(sp);
           sp.classList.add('roll');
         }
       };
