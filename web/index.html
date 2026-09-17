@@ -1786,6 +1786,7 @@ async function play(flag, epUrl, siteKey) {
 // 打开播放页 + 解析 + 起播（重试/换集也走这里）
 async function startEpisode(startMs) {
   if (!playCtx) return;
+  const ctx = playCtx; // 本次播放上下文：返回/切集后旧请求一律作废
   $('playerPage').classList.add('show');
   $('epsDrawer').classList.remove('show');
   const title = (playCtx.vodName || '') + (playCtx.epName ? ' · ' + playCtx.epName : '');
@@ -1795,8 +1796,10 @@ async function startEpisode(startMs) {
   updatePnButtons();
   try {
     const j = await api('play', { site: playCtx.site, flag: playCtx.flag, id: playCtx.epUrl });
+    if (playCtx !== ctx) return; // 期间已返回或换了集 → 丢弃这次结果
     startPlayer(j.url, title, startMs || 0);
   } catch (e) {
+    if (playCtx !== ctx) return; // 已返回 → 不再重试
     const msg = String(e.message || '');
     // 转存/令牌过期类失败：自动重拉详情（拿新 fileToken，集地址后缀会变）后重试一次
     if (!playCtx.tokenRefreshed && /转存|失效|token|分享|500|过期|不存在/.test(msg) && playCtx.vodId) {
@@ -1806,6 +1809,7 @@ async function startEpisode(startMs) {
         const oldUrl = playCtx.epUrl;
         const curName = (oldList.find(x => (x.url || '') === oldUrl) || {}).name;
         const j = await api('detail', { site: playCtx.site, id: playCtx.vodId });
+        if (playCtx !== ctx) return; // 期间已返回 → 丢弃
         const f = (j.flags || []).find(x => x.flag === playCtx.flag) || (j.flags || [])[0];
         if (f && (f.episodes || []).length) {
           playCtx.flag = f.flag;
@@ -1841,6 +1845,7 @@ function showPlayError(msg) {
 // 失败重试：重新解析（同一集同一线路）+ 从当前位置继续
 async function retryCurrent(auto) {
   if (!playCtx) return;
+  if (!$('playerPage').classList.contains('show')) return; // 已退出播放页：不再自动拉起
   const v = $('video');
   const posMs = (v && v.currentTime > 0) ? Math.floor(v.currentTime * 1000) : (playCtx.pos || 0);
   playCtx.pos = posMs;
@@ -1852,6 +1857,7 @@ async function retryCurrent(auto) {
 // 但风控/转存受限类错误不自动重试（避免加重封禁），只给手动按钮
 function scheduleRetry(reason) {
   if (!playCtx) return;
+  if (!$('playerPage').classList.contains('show')) return; // 已返回：不再调度重试
   const msg = String(reason || '');
   // 不可自愈类：风控 / 文件被删 / 分享失效 → 停止自动重试，给手动操作
   if (/412|风控|转存失败|41013|限流|频繁|403|失效|删除|not found|21001|获取视频流失败|未找到该集文件/.test(msg)) {
@@ -1874,7 +1880,9 @@ function scheduleRetry(reason) {
   }
   playCtx.retryCount = n + 1;
   setTip('播放中断，自动重试中（' + (n + 1) + '/3）…');
-  setTimeout(() => retryCurrent(true), 2000 * (n + 1));
+  const ctx = playCtx;
+  clearTimeout(ctx.retryTimer);
+  ctx.retryTimer = setTimeout(() => { if (playCtx !== ctx) return; retryCurrent(true); }, 2000 * (n + 1));
 }
 
 // ---- 播放信息：分辨率（顶部居中）+ 下载速度（右上角） ----
@@ -2091,6 +2099,7 @@ function renderDmMenu() {
 }
 
 function startPlayer(url, title, startMs) {
+  if (!playCtx || !$('playerPage').classList.contains('show')) return; // 已返回 → 不再起播
   destroyPlayer();
   if (!playCtx) playCtx = { pos: 0 };
   playCtx.pos = startMs || 0;
@@ -2114,7 +2123,7 @@ function startPlayer(url, title, startMs) {
   } else {
     video.src = url;
   }
-  video.onplaying = () => { $('playerTip').style.display = 'none'; playCtx.retryCount = 0; };
+  video.onplaying = () => { $('playerTip').style.display = 'none'; if (playCtx) playCtx.retryCount = 0; };
   video.onerror = () => { scheduleRetry('视频加载失败'); };
   video.onloadedmetadata = updateRes;
   video.onresize = updateRes;
@@ -2241,6 +2250,7 @@ async function restoreNowPlaying() {
 
 // ---- 选集 / 上下集 ----
 async function ensurePlayList() {
+  if (!playCtx) return false;
   if (playCtx.list && playCtx.list.length) return true;
   try {
     const j = await api('detail', { site: playCtx.site, id: playCtx.vodId });
@@ -2449,8 +2459,11 @@ function destroyPlayer() {
   $('playerTip').style.display = 'none';
 }
 function closePlayer() {
+  // 取消待执行的自动重试，防止"返回后又被拉回播放页"
+  if (playCtx && playCtx.retryTimer) { clearTimeout(playCtx.retryTimer); playCtx.retryTimer = null; }
   reportHistory(true); // 退出时保存进度
   destroyPlayer();
+  playCtx = null;
   $('playerPage').classList.remove('show');
   $('epsDrawer').classList.remove('show');
   try { sessionStorage.removeItem(NP_KEY); localStorage.removeItem(NP_KEY); } catch (e) {}
