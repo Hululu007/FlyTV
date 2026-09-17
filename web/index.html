@@ -1811,6 +1811,14 @@ async function startEpisode(startMs) {
   try {
     const j = await api('play', { site: playCtx.site, flag: playCtx.flag, id: playCtx.epUrl });
     if (playCtx !== ctx) return; // 期间已返回或换了集 → 丢弃这次结果
+    // 播放前预检：网盘中继地址先探 1KB —— 登录过期/文件失效直接提示，不盲目起播
+    if (j.url && /\/jarstream|\/proxy\?do=pan/.test(j.url)) {
+      try {
+        const ck = await api('play/check', { url: j.url });
+        if (playCtx !== ctx) return;
+        if (ck && ck.ok === false) { showPlayIssue(ck.reason, ck.message || ''); updatePnButtons(); return; }
+      } catch (e) { /* 预检异常不拦截，交给播放器 */ }
+    }
     startPlayer(j.url, title, startMs || 0);
   } catch (e) {
     if (playCtx !== ctx) return; // 已返回 → 不再重试
@@ -1856,6 +1864,24 @@ function showPlayError(msg) {
   setTip(esc(msg) + '<br><button class="btn sm" style="margin-top:10px" onclick="retryCurrent()">🔄 从当前位置重试</button>', true);
 }
 
+// 播放受阻提示（不盲目重试，直接给出下一步操作）
+function showPlayIssue(reason, message) {
+  if (reason === 'login') {
+    setTip('🔑 ' + esc(message || '网盘登录已过期或未登录') +
+      '<br><span style="font-size:12px;opacity:.7">重新登录后即可继续播放</span><br>' +
+      '<button class="btn sm" style="margin-top:10px" onclick="gotoPanLogin()">去网盘登录</button>' +
+      '<button class="btn ghost sm" style="margin-top:10px;margin-left:8px" onclick="closePlayer()">返回</button>', true);
+  } else if (reason === 'dead') {
+    setTip('⚠️ ' + esc(message || '文件已从网盘失效') +
+      '<br><button class="btn sm" style="margin-top:10px" onclick="closePlayer()">返回换线路</button>', true);
+  } else {
+    setTip('⚠️ ' + esc(message || '拉流失败') +
+      '<br><button class="btn sm" style="margin-top:10px" onclick="retryCurrent()">🔄 重试</button>' +
+      '<button class="btn ghost sm" style="margin-top:10px;margin-left:8px" onclick="closePlayer()">返回</button>', true);
+  }
+}
+function gotoPanLogin() { closePlayer(); openPanel('pan'); }
+
 // 失败重试：重新解析（同一集同一线路）+ 从当前位置继续
 async function retryCurrent(auto) {
   if (!playCtx) return;
@@ -1873,11 +1899,17 @@ function scheduleRetry(reason) {
   if (!playCtx) return;
   if (!$('playerPage').classList.contains('show')) return; // 已返回：不再调度重试
   const msg = String(reason || '');
+  // 登录类 / 拿不到地址类：不重试，直接引导（未登录网盘或资源异常，重试无意义）
+  if (/未登录|请先登录|登录已(经)?过期|auth expired|require login|登录失效|未授权|未获取到播放地址/.test(msg)) {
+    const noUrl = /未获取到播放地址/.test(msg);
+    showPlayIssue('login', noUrl ? '该线路没能获取到播放地址（可能未登录网盘或资源异常），可换线路或先登录网盘' : '网盘登录已过期或未登录');
+    return;
+  }
   // 不可自愈类：风控 / 文件被删 / 分享失效 → 停止自动重试，给手动操作
   if (/412|风控|转存失败|41013|限流|频繁|403|失效|删除|not found|21001|获取视频流失败|未找到该集文件/.test(msg)) {
     const dead = /失效|删除|not found|21001|获取视频流失败|未找到该集文件/.test(msg);
     setTip(esc(msg) +
-      '<br><span style="font-size:12px;color:rgba(255,255,255,.6)">' +
+      '<br><span style="font-size:12px;opacity:.7">' +
       (dead ? '（该文件已从网盘失效/被删——重试无用，建议返回换线路或换其他源）'
             : '（夸克风控/转存受限中——已停止自动重试，避免加重限制）') + '</span><br>' +
       '<button class="btn sm" style="margin-top:10px" onclick="retryCurrent()">🔄 仍要重试</button>' +
