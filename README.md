@@ -1,6 +1,10 @@
 # FlyTV
 
-> Windows 上的本地影视聚合引擎 + Web 前端（TVBox 生态，纯 Java 实现）
+> **TVBox 的 Windows 版** · 免安装 · 纯 Java 本地影视聚合引擎 + Web 播放器
+
+[![Release](https://img.shields.io/github/v/release/LanLanff/FlyTV?label=release)](https://github.com/LanLanff/FlyTV/releases/latest)
+[![License](https://img.shields.io/github/license/LanLanff/FlyTV)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/LanLanff/FlyTV)](https://github.com/LanLanff/FlyTV/stargazers)
 
 ![截图](docs/screenshot.jpg)
 
@@ -133,6 +137,10 @@ jlink --add-modules java.base,java.desktop,java.logging,java.net.http,java.scrip
 - [FongMi/TV](https://github.com/FongMi/TV)：搜索联想与热词等交互参考
 - [Plyr](https://github.com/sampotts/plyr)、[hls.js](https://github.com/video-dev/hls.js)：播放器
 - [qrcodejs](https://github.com/davidshimjs/qrcodejs)：扫码登录二维码渲染（MIT）
+
+## 关键词
+
+TVBox Windows 版 · TVBox 电脑版 · TVBox 桌面版 · TVBox 电脑端 · 影视聚合 · 网盘播放 · 夸克网盘 · CatVod · FongMi · jar 爬虫 · 弹幕 · 免安装绿色版 · 纯 Java
 
 ## License
 
