@@ -41,6 +41,7 @@ public final class Sync {
         String url = Setting.getString("sync_url", "");
         o.addProperty("url", url);
         o.addProperty("hasPass", !Setting.getString("sync_pass", "").isEmpty());
+        o.addProperty("auto", Setting.getBool("sync_auto", true));
         o.addProperty("lastUp", Setting.getString("sync_last_up", ""));
         o.addProperty("lastDown", Setting.getString("sync_last_down", ""));
         return o;
@@ -50,6 +51,12 @@ public final class Sync {
     public static String statusJson() { return status().toString(); }
 
     public static String saveJson(String url, String pass) { return save(url, pass).toString(); }
+
+    public static String saveJson3(String url, String pass, String auto) { return save(url, pass, auto).toString(); }
+
+    public static String autoJson() {
+        try { return autoSync().toString(); } catch (Exception e) { return errJson(e); }
+    }
 
     public static String uploadJson() {
         try { return upload().toString(); } catch (Exception e) { return errJson(e); }
@@ -65,7 +72,9 @@ public final class Sync {
         return o.toString();
     }
 
-    public static JsonObject save(String url, String pass) {
+    public static JsonObject save(String url, String pass) { return save(url, pass, null); }
+
+    public static JsonObject save(String url, String pass, String auto) {
         JsonObject o = new JsonObject();
         url = url == null ? "" : url.trim();
         if (!url.isEmpty() && !url.startsWith("http")) {
@@ -74,6 +83,7 @@ public final class Sync {
         }
         Setting.put("sync_url", url);
         if (pass != null && !pass.isEmpty()) Setting.put("sync_pass", pass);
+        if (auto != null && !auto.isEmpty()) Setting.put("sync_auto", "1".equals(auto) || "true".equalsIgnoreCase(auto));
         o.addProperty("ok", true);
         return o;
     }
@@ -203,6 +213,124 @@ public final class Sync {
         o.addProperty("size", blob.length);
         Logger.d("Sync", "下载还原完成: " + applied + " 项");
         return o;
+    }
+
+    // ---------- 自动同步（历史/收藏，独立小文件 history.dat） ----------
+
+    /** 由同步地址推导历史小文件地址（同目录 history.dat）。 */
+    static String historyUrl(String url) {
+        try {
+            int q = url.indexOf('?');
+            String base = q >= 0 ? url.substring(0, q) : url;
+            int slash = base.lastIndexOf('/');
+            if (slash < 0) return base + ".history.dat";
+            return base.substring(0, slash + 1) + "history.dat" + (q >= 0 ? url.substring(q) : "");
+        } catch (Exception e) {
+            return url + ".history.dat";
+        }
+    }
+
+    /** 合并历史数组（key 相同取 createTime 新者）。 */
+    static void mergeHistoryText(String text) {
+        JsonArray arr = JsonUtil.parseArr(text);
+        if (arr == null) return;
+        for (JsonElement e : arr) {
+            try {
+                if (!e.isJsonObject()) continue;
+                JsonObject t = e.getAsJsonObject();
+                String key = JsonUtil.str(t, "key", "");
+                if (key.isEmpty()) continue;
+                int cid = JsonUtil.integer(t, "cid", Api.currentCid());
+                JsonObject mine = Stores.findHistory(cid, key);
+                if (mine == null || JsonUtil.lng(t, "createTime", 0) > JsonUtil.lng(mine, "createTime", 0)) {
+                    Stores.saveHistory(t);
+                }
+            } catch (Exception ignored) { }
+        }
+    }
+
+    /** 合并收藏数组（key 去重）。 */
+    static void mergeKeepText(String text) {
+        JsonArray arr = JsonUtil.parseArr(text);
+        if (arr == null) return;
+        for (JsonElement e : arr) {
+            try {
+                if (!e.isJsonObject()) continue;
+                JsonObject t = e.getAsJsonObject();
+                String key = JsonUtil.str(t, "key", "");
+                if (key.isEmpty()) continue;
+                int cid = JsonUtil.integer(t, "cid", Api.currentCid());
+                if (Stores.findKeep(cid, key) == null) Stores.saveKeep(t);
+            } catch (Exception ignored) { }
+        }
+    }
+
+    private static volatile long lastHistRev = -1, lastKeepRev = -1;
+
+    /** 自动同步一次：拉取云端历史/收藏 → 合并 → 有变化则回传（不动配置/Cookie）。 */
+    public static JsonObject autoSync() throws Exception {
+        String url = Setting.getString("sync_url", "");
+        String pass = Setting.getString("sync_pass", "");
+        JsonObject o = new JsonObject();
+        if (url.isEmpty() || pass.isEmpty()) { o.addProperty("skip", true); return o; }
+        String hurl = historyUrl(url);
+        boolean pulled = false;
+        byte[] blob = get(hurl);
+        if (blob != null) {
+            String json = new String(gunzip(decrypt(blob, pass)), StandardCharsets.UTF_8);
+            JsonObject bundle = JsonUtil.parseObj(json);
+            JsonObject files = bundle == null ? null : bundle.getAsJsonObject("files");
+            if (files != null) {
+                if (files.has("history.json")) { mergeHistoryText(files.get("history.json").getAsString()); pulled = true; }
+                if (files.has("keep.json")) { mergeKeepText(files.get("keep.json").getAsString()); pulled = true; }
+            }
+        }
+        long hr = Stores.historyRevision(), kr = Stores.keepRevision();
+        boolean pushed = false;
+        if (pulled || hr != lastHistRev || kr != lastKeepRev) {
+            JsonObject files = new JsonObject();
+            File hf = new File(AppPaths.Root, "history.json");
+            if (hf.exists()) files.addProperty("history.json", new String(Files.readAllBytes(hf.toPath()), StandardCharsets.UTF_8));
+            File kf = new File(AppPaths.Root, "keep.json");
+            if (kf.exists()) files.addProperty("keep.json", new String(Files.readAllBytes(kf.toPath()), StandardCharsets.UTF_8));
+            JsonObject bundle = new JsonObject();
+            bundle.addProperty("app", "FlyTV");
+            bundle.addProperty("kind", "history");
+            bundle.addProperty("time", System.currentTimeMillis());
+            bundle.add("files", files);
+            byte[] data = encrypt(gzip(bundle.toString().getBytes(StandardCharsets.UTF_8)), pass);
+            int code = put(hurl, data);
+            if (code >= 200 && code < 300) {
+                pushed = true;
+                lastHistRev = hr;
+                lastKeepRev = kr;
+            }
+        }
+        o.addProperty("ok", true);
+        o.addProperty("pulled", pulled);
+        o.addProperty("pushed", pushed);
+        return o;
+    }
+
+    /** 自动同步线程：每 5 分钟一次（sync_auto 开关，默认开）。 */
+    public static void startAutoSync() {
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(60000); } catch (InterruptedException ignored) { return; }
+            while (true) {
+                try {
+                    if (Setting.getBool("sync_auto", true)) {
+                        JsonObject r = autoSync();
+                        if (JsonUtil.bool(r, "pulled", false) || JsonUtil.bool(r, "pushed", false)) {
+                            Logger.d("AutoSync", "自动同步 拉取=" + JsonUtil.bool(r, "pulled", false) + " 回传=" + JsonUtil.bool(r, "pushed", false));
+                        }
+                    }
+                } catch (Exception e) { Logger.d("AutoSync", "异常: " + e.getMessage()); }
+                try { Thread.sleep(5 * 60 * 1000); } catch (InterruptedException ignored) { return; }
+            }
+        }, "auto-sync");
+        t.setDaemon(true);
+        t.start();
+        Logger.d("AutoSync", "自动同步已启动（每 5 分钟，历史/收藏）");
     }
 
     // ---------- 内部实现 ----------

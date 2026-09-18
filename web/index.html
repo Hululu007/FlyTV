@@ -770,6 +770,14 @@
               </span>
             </div>
             <div class="srow">
+              <span class="k">自动同步（历史/收藏）</span>
+              <span class="v">
+                <label style="cursor:pointer;display:flex;gap:6px;align-items:center">
+                  <input type="checkbox" id="syncAuto" onchange="saveSyncCfg()"> 每 5 分钟自动同步
+                </label>
+              </span>
+            </div>
+            <div class="srow">
               <span class="k">一键同步</span>
               <span class="v" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
                 <button class="btn ghost" onclick="saveSyncCfg()">保存配置</button>
@@ -1698,6 +1706,7 @@ async function loadSyncStatus() {
   try {
     const j = await api('sync/status');
     if ($('syncUrl') && document.activeElement !== $('syncUrl')) $('syncUrl').value = j.url || '';
+    if ($('syncAuto')) $('syncAuto').checked = j.auto !== false;
     const parts = [j.url ? '已配置' : '未配置'];
     if (j.lastUp) parts.push('上次上传 ' + new Date(+j.lastUp).toLocaleString());
     if (j.lastDown) parts.push('上次下载 ' + new Date(+j.lastDown).toLocaleString());
@@ -1707,7 +1716,8 @@ async function loadSyncStatus() {
 async function syncSaveCfg() {
   const url = ($('syncUrl').value || '').trim();
   const pass = ($('syncPass').value || '');
-  const j = await apiPost('sync/save', { url, pass });
+  const auto = $('syncAuto') && $('syncAuto').checked ? '1' : '0';
+  const j = await apiPost('sync/save', { url, pass, auto });
   if (j.error) throw new Error(j.error);
   $('syncPass').value = '';
   return j;

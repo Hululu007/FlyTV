@@ -23,6 +23,8 @@ public final class Main {
         PinyinIndex.warmup();
         // 网盘会话保活（每 20 分钟续期一次）
         PanService.startKeepAlive();
+        // 历史/收藏自动同步（每 5 分钟，云端 WebDAV）
+        Sync.startAutoSync();
 
         int port = Integer.parseInt(System.getProperty("flytv.port", System.getProperty("tvbox.port", "19978")));
         boolean lan = Setting.localServerLan();
