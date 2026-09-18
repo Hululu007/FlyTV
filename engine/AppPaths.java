@@ -56,6 +56,16 @@ public final class AppPaths {
                 Logger.d("AppPaths", "已生成默认配置: " + f);
             } catch (Exception ignored) { }
         }
+        // 全新机器：生成默认点播配置列表（设置页可见"内置配置"，避免"点播配置为空"的困惑）
+        try {
+            File cfg = new File(Root, "configs.json");
+            if (!cfg.exists() || cfg.length() < 3) {
+                String defaultCfg = "[{\"id\":1,\"type\":0,\"time\":" + System.currentTimeMillis()
+                        + ",\"url\":\"" + Setting.BuiltInConfigVod + "\",\"name\":\"内置配置\",\"home\":\"\",\"parse\":\"\",\"notice\":\"\",\"danmaku\":\"\"}]";
+                java.nio.file.Files.write(cfg.toPath(), defaultCfg.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                Logger.d("AppPaths", "已生成默认点播配置: " + cfg);
+            }
+        } catch (Exception ignored) { }
     }
 
     /** 安装目录 = 引擎 jar 所在目录（其中含 web/、jar/ 等）。 */
