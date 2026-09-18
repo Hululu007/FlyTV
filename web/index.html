@@ -901,7 +901,7 @@ function openPanel(name) {
   $('topbar').style.display = (name === 'vod') ? '' : 'none';
   if (name === 'vod' && !$('tabs').dataset.loaded) loadHome();
     if (name === 'search') { setTimeout(() => $('sInput').focus(), 60); loadSearchHistory(); loadHotWords(); }
-  if (name === 'history') loadHistory();
+  if (name === 'history') syncThenHistory();
   if (name === 'keep') loadKeep();
   if (name === 'pan') loadPan();
   if (name === 'settings') loadSettings();
@@ -1497,6 +1497,18 @@ function fmtTime(ms) {
   return h > 0 ? `${h}:${p(m)}:${p(ss)}` : `${m}:${p(ss)}`;
 }
 
+// 打开历史记录：先拉取一次云端（合并最新进度），再显示列表
+async function syncThenHistory() {
+  try {
+    const st = await api('sync/status');
+    if (st.url) {
+      $('historyStatus').textContent = '正在同步云端…';
+      const j = await api('sync/auto');
+      if (j && j.pulled) toast('已拉取云端最新历史');
+    }
+  } catch (e) { /* 同步失败不影响本地显示 */ }
+  loadHistory();
+}
 async function loadHistory() {
   $('historyStatus').textContent = '加载中…'; $('historyGrid').innerHTML = '';
   try {
