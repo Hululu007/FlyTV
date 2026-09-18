@@ -275,6 +275,91 @@ public final class PanService {
         return JarHost.postJson("/jarpost", payload.toString(), 60000);
     }
 
+    // ---------- 会话保活（续期） ----------
+    private static volatile boolean keepAliveStarted = false;
+
+    /** 启动网盘会话保活：定时用 jar 指纹调轻量接口（网页版刷新等效），触发服务端续期并收割新令牌。 */
+    public static void startKeepAlive() {
+        if (keepAliveStarted) return;
+        keepAliveStarted = true;
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(90 * 1000); } catch (InterruptedException ignored) { return; }
+            while (true) {
+                try { keepAliveOnce(); } catch (Exception e) { Logger.d("KeepAlive", "保活异常: " + e.getMessage()); }
+                try { Thread.sleep(20 * 60 * 1000); } catch (InterruptedException ignored) { return; }
+            }
+        }, "pan-keepalive");
+        t.setDaemon(true);
+        t.start();
+        Logger.d("KeepAlive", "网盘会话保活已启动（每 20 分钟）");
+    }
+
+    static void keepAliveOnce() {
+        String cookie = readCookie();
+        if (cookie.isEmpty()) return;
+        VodConfig.Site site = null;
+        try {
+            for (VodConfig.Site s : VodConfig.sites()) if (!s.hidden) { site = s; break; }
+        } catch (Exception ignored) { }
+        if (site == null) return;
+        try { Spiders.ensureLoaded(site); } catch (Exception ignored) { }
+        String before = cookie;
+        try {
+            relayRaw(site.key, "get", "https://drive-pc.quark.cn/1/clouddrive/config?pr=ucpro&fr=pc&uc_param_str=", null, cookie);
+        } catch (Exception ignored) { }
+        try {
+            relayRaw(site.key, "get", "https://drive-pc.quark.cn/1/clouddrive/member?pr=ucpro&fr=pc&uc_param_str=&fetch_subscribe=true&_ch=home&fetch_identity=true", null, cookie);
+        } catch (Exception ignored) { }
+        try {
+            relayRaw(site.key, "get", "https://pan.quark.cn/account/info", null, cookie);
+        } catch (Exception ignored) { }
+        String after = readCookie();
+        boolean changed = !after.equals(before);
+        String puus = "";
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("__puus=([^;]{8})").matcher(after);
+        if (m.find()) puus = m.group(1);
+        Logger.d("KeepAlive", "quark 保活: 长度=" + after.length() + " __puus=" + puus + (changed ? " 已收获新令牌✓" : " 未变"));
+        if (changed) syncNewestCookie(after);
+    }
+
+    /** 把最新 Cookie 同步到宿主读取位置（%TEMP%）与引擎存储（Pizazz），保留 JSON 元数据字段。 */
+    static void syncNewestCookie(String cookie) {
+        try { syncCookieForHost(cookie); } catch (Exception ignored) { }
+        try {
+            File piz = new File(AppPaths.JarCache, "files" + File.separator + "Pizazz");
+            if (!piz.exists()) piz.mkdirs();
+            for (String name : new String[]{"quark_cookie.txt", "quark_cookie"}) {
+                File f = new File(piz, name);
+                String text;
+                JsonObject old = null;
+                if (f.exists()) {
+                    try { old = JsonUtil.parseObj(new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.UTF_8)); } catch (Exception ignored) { }
+                }
+                if (old != null) {
+                    old.addProperty("cookie", cookie);
+                    text = old.toString();
+                } else {
+                    JsonObject j = new JsonObject();
+                    j.addProperty("cookie", cookie);
+                    text = j.toString();
+                }
+                java.nio.file.Files.write(f.toPath(), text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            File cfg = new File(piz, "config.json");
+            if (cfg.exists()) {
+                try {
+                    JsonObject c = JsonUtil.parseObj(new String(java.nio.file.Files.readAllBytes(cfg.toPath()), java.nio.charset.StandardCharsets.UTF_8));
+                    if (c != null) {
+                        c.addProperty("quark_cookie", cookie);
+                        java.nio.file.Files.write(cfg.toPath(), c.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                } catch (Exception ignored) { }
+            }
+        } catch (Exception e) {
+            Logger.d("KeepAlive", "cookie 落盘失败: " + e.getMessage());
+        }
+    }
+
     /** 取播放流地址：优先 video_list 首个 accessable（宿主已把最高档排前）。 */
     public static String extractStreamUrl(String text) {
         try {

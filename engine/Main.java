@@ -21,6 +21,8 @@ public final class Main {
         }, "config-load").start();
         // 拼音索引预热（搜索联想）
         PinyinIndex.warmup();
+        // 网盘会话保活（每 20 分钟续期一次）
+        PanService.startKeepAlive();
 
         int port = Integer.parseInt(System.getProperty("flytv.port", System.getProperty("tvbox.port", "19978")));
         boolean lan = Setting.localServerLan();
