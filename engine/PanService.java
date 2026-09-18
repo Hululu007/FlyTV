@@ -322,41 +322,47 @@ public final class PanService {
         if (changed) syncNewestCookie(after);
     }
 
-    /** 把最新 Cookie 同步到宿主读取位置（%TEMP%）与引擎存储（Pizazz），保留 JSON 元数据字段。 */
+    /** 把最新 Cookie 同步到宿主读取位置（%TEMP%）、引擎存储（Pizazz）与 jar 仓库（lzxw），保留 JSON 元数据字段。 */
     static void syncNewestCookie(String cookie) {
         try { syncCookieForHost(cookie); } catch (Exception ignored) { }
-        try {
-            File piz = new File(AppPaths.JarCache, "files" + File.separator + "Pizazz");
-            if (!piz.exists()) piz.mkdirs();
-            for (String name : new String[]{"quark_cookie.txt", "quark_cookie"}) {
-                File f = new File(piz, name);
-                String text;
-                JsonObject old = null;
-                if (f.exists()) {
-                    try { old = JsonUtil.parseObj(new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.UTF_8)); } catch (Exception ignored) { }
-                }
-                if (old != null) {
-                    old.addProperty("cookie", cookie);
-                    text = old.toString();
-                } else {
-                    JsonObject j = new JsonObject();
-                    j.addProperty("cookie", cookie);
-                    text = j.toString();
-                }
-                java.nio.file.Files.write(f.toPath(), text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            }
-            File cfg = new File(piz, "config.json");
-            if (cfg.exists()) {
-                try {
-                    JsonObject c = JsonUtil.parseObj(new String(java.nio.file.Files.readAllBytes(cfg.toPath()), java.nio.charset.StandardCharsets.UTF_8));
-                    if (c != null) {
-                        c.addProperty("quark_cookie", cookie);
-                        java.nio.file.Files.write(cfg.toPath(), c.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String[] dirs = {
+                AppPaths.JarCache + "\\files" + File.separator + "Pizazz",
+                AppPaths.JarCache + "\\files" + File.separator + "lzxw"
+        };
+        for (String dirPath : dirs) {
+            try {
+                File dir = new File(dirPath);
+                if (!dir.exists()) dir.mkdirs();
+                for (String name : new String[]{"quark_cookie.txt", "quark_cookie"}) {
+                    File f = new File(dir, name);
+                    String text;
+                    JsonObject old = null;
+                    if (f.exists()) {
+                        try { old = JsonUtil.parseObj(new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.UTF_8)); } catch (Exception ignored) { }
                     }
-                } catch (Exception ignored) { }
+                    if (old != null) {
+                        old.addProperty("cookie", cookie);
+                        text = old.toString();
+                    } else {
+                        JsonObject j = new JsonObject();
+                        j.addProperty("cookie", cookie);
+                        text = j.toString();
+                    }
+                    java.nio.file.Files.write(f.toPath(), text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+                File cfg = new File(dir, "config.json");
+                if (cfg.exists()) {
+                    try {
+                        JsonObject c = JsonUtil.parseObj(new String(java.nio.file.Files.readAllBytes(cfg.toPath()), java.nio.charset.StandardCharsets.UTF_8));
+                        if (c != null) {
+                            c.addProperty("quark_cookie", cookie);
+                            java.nio.file.Files.write(cfg.toPath(), c.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        }
+                    } catch (Exception ignored) { }
+                }
+            } catch (Exception e) {
+                Logger.d("KeepAlive", "cookie 落盘失败(" + dirPath + "): " + e.getMessage());
             }
-        } catch (Exception e) {
-            Logger.d("KeepAlive", "cookie 落盘失败: " + e.getMessage());
         }
     }
 
@@ -439,8 +445,12 @@ public final class PanService {
     // ---------- cookie ----------
     static String readCookie() {
         // 取"最新修改"的那份：jar 宿主会在 %TEMP%\TVBox 滚动收割服务端下发的新令牌（Set-Cookie），
-        // 引擎侧不能死盯旧副本，否则会出现"引擎拿旧会话解析、宿主拿新会话拉流"的错位。
-        String[] dirs = { AppPaths.JarCache + "\\files\\Pizazz", System.getenv("TEMP") + "\\TVBox" };
+        // lzxw 是 jar 自身登录器/配置中心的 Cookie 仓库（打通后与 jar 共用同一份登录态）。
+        String[] dirs = {
+                AppPaths.JarCache + "\\files\\Pizazz",
+                System.getenv("TEMP") + "\\TVBox",
+                AppPaths.JarCache + "\\files\\lzxw"
+        };
         String[] names = { "quark_cookie.txt", "quark_cookie" };
         File best = null;
         for (String dir : dirs) {

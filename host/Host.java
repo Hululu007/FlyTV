@@ -1090,15 +1090,17 @@ public class Host {
             String merged = replacePuus(text, val);
             if (merged == null || merged.equals(text)) return;
             Files.write(tmp, merged.getBytes(StandardCharsets.UTF_8));
-            for (String name : new String[]{"quark_cookie.txt", "quark_cookie"}) {
-                Path p = DATA_DIR.resolve("files").resolve("Pizazz").resolve(name);
-                try {
-                    if (Files.exists(p)) {
-                        String t2 = new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
-                        String m2 = replacePuus(t2, val);
-                        if (m2 != null && !m2.equals(t2)) Files.write(p, m2.getBytes(StandardCharsets.UTF_8));
-                    }
-                } catch (Throwable ignored) { }
+            for (String dirName : new String[]{"Pizazz", "lzxw"}) {
+                for (String name : new String[]{"quark_cookie.txt", "quark_cookie"}) {
+                    Path p = DATA_DIR.resolve("files").resolve(dirName).resolve(name);
+                    try {
+                        if (Files.exists(p)) {
+                            String t2 = new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
+                            String m2 = replacePuus(t2, val);
+                            if (m2 != null && !m2.equals(t2)) Files.write(p, m2.getBytes(StandardCharsets.UTF_8));
+                        }
+                    } catch (Throwable ignored) { }
+                }
             }
             log("harvested new __puus (" + val.length() + " chars)");
         } catch (Throwable t) { /* ignore */ }
