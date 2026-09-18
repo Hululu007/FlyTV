@@ -669,8 +669,15 @@ public final class Api {
 
     static String panLogout(Map<String, String> p) {
         String id = p.getOrDefault("drive", "");
-        String fileBase = "quark".equals(id) ? "quark_cookie" : "uc".equals(id) ? "uc_cookie" : "baidu_cookie";
-        String[] dirs = { AppPaths.JarCache + "\\files\\Pizazz", System.getenv("TEMP") + "\\TVBox" };
+        String fileBase = "quark".equals(id) ? "quark_cookie"
+                : "uc".equals(id) ? "uc_cookie"
+                : "ali".equals(id) ? "ali_cookie"
+                : "baidu_cookie";
+        String[] dirs = {
+                AppPaths.JarCache + "\\files\\Pizazz",
+                System.getenv("TEMP") + "\\TVBox",
+                AppPaths.JarCache + "\\files\\lzxw"
+        };
         for (String dir : dirs) {
             for (String suffix : new String[]{ ".txt", "" }) {
                 File f = new File(dir, fileBase + suffix);
@@ -679,6 +686,7 @@ public final class Api {
         }
         JsonObject o = new JsonObject();
         o.addProperty("ok", true);
+        o.addProperty("message", "已清除");
         return o.toString();
     }
 

@@ -1326,6 +1326,8 @@ function renderGrid(grid, list, append) {
   });
 }
 function onCardClick(v, siteKey) {
+  const sk = siteKey || v.site || curSite || '';
+  if (sk === '配置中心' || /配置中心/.test(v.siteName || '')) { cfgCenterAction(v); return; }
   if ((v.id || '').toLowerCase().startsWith('msearch:')) {
     openPanel('search');
     $('sInput').value = v.name || (v.id || '').slice(8);
@@ -1333,6 +1335,33 @@ function onCardClick(v, siteKey) {
     return;
   }
   openDetail(v.id, v.name, siteKey);
+}
+// 玩偶配置中心（安卓专属交互）→ 桌面端映射为内置登录/清除功能
+function cfgCenterAction(v) {
+  const name = String(v.name || '');
+  if (/说明|详情|帮助|tip/i.test(name)) { toast('手机上使用 TVBox 的配置中心查看说明'); return; }
+  if (/清除/.test(name)) {
+    const drive = /夸克/.test(name) ? 'quark' : /UC/.test(name) ? 'uc' : /百度/.test(name) ? 'baidu' : /阿里/.test(name) ? 'ali' : '';
+    if (!drive) { toast('「' + name + '」桌面端暂不支持清除，可在手机上操作'); return; }
+    if (!confirm('确定清除「' + name + '」吗？')) return;
+    apiPost('pan/logout', { drive }).then(() => { toast('已清除'); loadPan(); }).catch(e => toast('清除失败: ' + e.message));
+    return;
+  }
+  if (/个人中心/.test(name)) {
+    api('pan/drives').then(j => {
+      const map = { 夸克: 'quark', UC: 'uc', 百度: 'baidu', 阿里: 'ali' };
+      let d = null;
+      for (const k in map) if (name.indexOf(k) >= 0) d = (j.drives || []).find(x => x.id === map[k]);
+      if (d) toast('「' + name + '」：' + d.status);
+      else toast('「' + name + '」桌面端暂不支持，可在手机上查看');
+    }).catch(() => toast('读取状态失败'));
+    return;
+  }
+  if (/夸克/.test(name)) { panLogin('quark', '夸克网盘'); return; }
+  if (/UC/.test(name)) { panLogin('uc', 'UC网盘'); return; }
+  if (/百度/.test(name)) { panLogin('baidu', '百度网盘'); return; }
+  if (/阿里/.test(name)) { panLogin('ali', '阿里云盘'); return; }
+  toast('「' + name + '」桌面端暂未支持，可继续在手机 TVBox 里操作');
 }
 
 // 跑马灯速度：约 50px/秒（名字越长跑得越久，节奏恒定不忽快忽慢）
