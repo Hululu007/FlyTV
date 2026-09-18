@@ -1036,15 +1036,34 @@ public class Host {
         try {
             Object resp = null;
             try { resp = result.getClass().getMethod("getResp").invoke(result); } catch (Throwable ignored) { }
-            if (resp instanceof java.util.Map) {
-                harvestPuusFromHeaders(((java.util.Map<?, ?>) resp).get("Set-Cookie"));
-                return;
+            Object sc = null;
+            if (resp instanceof java.util.Map) sc = ((java.util.Map<?, ?>) resp).get("Set-Cookie");
+            if (sc == null) {
+                try { sc = result.getClass().getMethod("header", String.class).invoke(result, "Set-Cookie"); } catch (Throwable ignored) { }
             }
-            try {
-                Object v = result.getClass().getMethod("header", String.class).invoke(result, "Set-Cookie");
-                harvestPuusFromHeaders(v);
-            } catch (Throwable ignored) { }
+            if (sc != null) {
+                String names = headerNames(sc);
+                if (!names.isEmpty()) log("响应 Set-Cookie: " + names);
+                harvestPuusFromHeaders(sc);
+            }
         } catch (Throwable ignored) { }
+    }
+
+    /** 只取 Cookie 名（不记录值，避免泄露令牌）。 */
+    static String headerNames(Object v) {
+        try {
+            java.util.List<?> list = (v instanceof java.util.List) ? (java.util.List<?>) v : java.util.Collections.singletonList(v);
+            StringBuilder sb = new StringBuilder();
+            for (Object o : list) {
+                String s = String.valueOf(o);
+                int eq = s.indexOf('=');
+                String n = eq > 0 ? s.substring(0, eq).trim() : s.trim();
+                if (n.isEmpty()) continue;
+                if (sb.length() > 0) sb.append(',');
+                sb.append(n);
+            }
+            return sb.toString();
+        } catch (Throwable t) { return ""; }
     }
 
     static void harvestPuusFromHeaders(Object v) {
