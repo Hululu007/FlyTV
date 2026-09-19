@@ -618,8 +618,15 @@ public final class Api {
         JsonArray arr = new JsonArray();
         arr.add(panDrive("quark", "夸克网盘", "quark_cookie"));
         arr.add(panDrive("uc", "UC网盘", "uc_cookie"));
-        arr.add(panDrive("baidu", "百度网盘", "baidu_cookie"));
+        arr.add(panDrive("baidu", "百度网盘", "baidu"));
         arr.add(panDrive("ali", "阿里云盘", "ali_cookie"));
+        arr.add(panDrive("bili", "哔哩哔哩", "bili_cookie"));
+        arr.add(panDrive("xunlei", "迅雷云盘", "xunlei"));
+        arr.add(panDrive("guangya", "光鸭云盘", "guangya"));
+        arr.add(panDrive("cloud189", "天翼云盘", "cloud189"));
+        arr.add(panDrive("cloud123", "123云盘", "cloud123"));
+        arr.add(panDrive("115", "115网盘", "115"));
+        arr.add(panDrive("uctoken", "UC TV Token", "uc_token"));
         JsonObject o = new JsonObject();
         o.add("drives", arr);
         return o.toString();
@@ -646,23 +653,32 @@ public final class Api {
     }
 
     static JsonObject readPanCookieJson(String fileBase) {
-        // 文件名规则与 C# PanStore 一致：{base}.txt（jarcache/files/Pizazz 或 TEMP/TVBox）
-        String[] dirs = { AppPaths.JarCache + "\\files\\Pizazz", System.getenv("TEMP") + "\\TVBox" };
+        // 三处仓库：Pizazz（引擎）/ TEMP（宿主）/ lzxw（jar 自身），兼容 base 与 base_cookie 两种命名
+        String[] dirs = {
+                AppPaths.JarCache + "\\files\\Pizazz",
+                System.getenv("TEMP") + "\\TVBox",
+                AppPaths.JarCache + "\\files\\lzxw"
+        };
+        String[] bases = fileBase.endsWith("_cookie")
+                ? new String[]{ fileBase, fileBase.replace("_cookie", "") }
+                : new String[]{ fileBase, fileBase + "_cookie" };
         for (String dir : dirs) {
-            for (String suffix : new String[]{ ".txt", "" }) {
-                File f = new File(dir, fileBase + suffix);
-                if (!f.exists()) continue;
-                try {
-                    String text = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).trim();
-                    if (text.startsWith("{")) {
-                        JsonObject o = JsonUtil.parseObj(text);
-                        if (o != null && !JsonUtil.str(o, "cookie", "").isEmpty()) return o;
-                    } else if (!text.isEmpty()) {
-                        JsonObject o = new JsonObject();
-                        o.addProperty("cookie", text);
-                        return o;
-                    }
-                } catch (Exception ignored) { }
+            for (String base : bases) {
+                for (String suffix : new String[]{ ".txt", "" }) {
+                    File f = new File(dir, base + suffix);
+                    if (!f.exists()) continue;
+                    try {
+                        String text = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).trim();
+                        if (text.startsWith("{")) {
+                            JsonObject o = JsonUtil.parseObj(text);
+                            if (o != null && !JsonUtil.str(o, "cookie", "").isEmpty()) return o;
+                        } else if (!text.isEmpty()) {
+                            JsonObject o = new JsonObject();
+                            o.addProperty("cookie", text);
+                            return o;
+                        }
+                    } catch (Exception ignored) { }
+                }
             }
         }
         return null;
@@ -670,18 +686,15 @@ public final class Api {
 
     static String panLogout(Map<String, String> p) {
         String id = p.getOrDefault("drive", "");
-        String fileBase = "quark".equals(id) ? "quark_cookie"
-                : "uc".equals(id) ? "uc_cookie"
-                : "ali".equals(id) ? "ali_cookie"
-                : "baidu_cookie";
+        String[] names = PanLogin.cookieNames(id);
         String[] dirs = {
                 AppPaths.JarCache + "\\files\\Pizazz",
                 System.getenv("TEMP") + "\\TVBox",
                 AppPaths.JarCache + "\\files\\lzxw"
         };
         for (String dir : dirs) {
-            for (String suffix : new String[]{ ".txt", "" }) {
-                File f = new File(dir, fileBase + suffix);
+            for (String name : names) {
+                File f = new File(dir, name);
                 if (f.exists()) try { f.delete(); } catch (Exception ignored) { }
             }
         }

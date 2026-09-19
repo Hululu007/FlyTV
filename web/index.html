@@ -1354,31 +1354,38 @@ function onCardClick(v, siteKey) {
   openDetail(v.id, v.name, siteKey);
 }
 // 玩偶配置中心（安卓专属交互）→ 桌面端映射为内置登录/清除功能
+const cfgDriveMap = [
+  ['夸克', 'quark', '夸克网盘'], ['UC TV', 'uctoken', 'UC TV Token'], ['UC', 'uc', 'UC网盘'],
+  ['百度', 'baidu', '百度网盘'], ['阿里', 'ali', '阿里云盘'], ['哔哩', 'bili', '哔哩哔哩'],
+  ['迅雷', 'xunlei', '迅雷云盘'], ['光鸭', 'guangya', '光鸭云盘'], ['天翼', 'cloud189', '天翼云盘'],
+  ['123', 'cloud123', '123云盘'], ['115', '115', '115网盘']
+];
+function cfgFindDrive(name) {
+  for (const [kw, id, label] of cfgDriveMap) if (name.indexOf(kw) >= 0) return [id, label];
+  return null;
+}
 function cfgCenterAction(v) {
   const name = String(v.name || '');
   if (/说明|详情|帮助|tip/i.test(name)) { toast('手机上使用 TVBox 的配置中心查看说明'); return; }
+  const hit = cfgFindDrive(name);
   if (/清除/.test(name)) {
-    const drive = /夸克/.test(name) ? 'quark' : /UC/.test(name) ? 'uc' : /百度/.test(name) ? 'baidu' : /阿里/.test(name) ? 'ali' : '';
-    if (!drive) { toast('「' + name + '」桌面端暂不支持清除，可在手机上操作'); return; }
+    if (!hit) { toast('「' + name + '」桌面端暂不支持清除，可在手机上操作'); return; }
     if (!confirm('确定清除「' + name + '」吗？')) return;
-    apiPost('pan/logout', { drive }).then(() => { toast('已清除'); loadPan(); }).catch(e => toast('清除失败: ' + e.message));
+    apiPost('pan/logout', { drive: hit[0] }).then(() => { toast('已清除「' + hit[1] + '」'); loadPan(); }).catch(e => toast('清除失败: ' + e.message));
     return;
   }
   if (/个人中心/.test(name)) {
+    if (!hit) { toast('「' + name + '」桌面端暂不支持，可在手机上查看'); return; }
     api('pan/drives').then(j => {
-      const map = { 夸克: 'quark', UC: 'uc', 百度: 'baidu', 阿里: 'ali' };
-      let d = null;
-      for (const k in map) if (name.indexOf(k) >= 0) d = (j.drives || []).find(x => x.id === map[k]);
-      if (d) toast('「' + name + '」：' + d.status);
-      else toast('「' + name + '」桌面端暂不支持，可在手机上查看');
+      const d = (j.drives || []).find(x => x.id === hit[0]);
+      toast('「' + hit[1] + '」：' + (d ? d.status : '未登录'));
     }).catch(() => toast('读取状态失败'));
     return;
   }
-  if (/夸克/.test(name)) { panLogin('quark', '夸克网盘'); return; }
-  if (/UC/.test(name)) { panLogin('uc', 'UC网盘'); return; }
-  if (/百度/.test(name)) { panLogin('baidu', '百度网盘'); return; }
-  if (/阿里/.test(name)) { panLogin('ali', '阿里云盘'); return; }
-  toast('「' + name + '」桌面端暂未支持，可继续在手机 TVBox 里操作');
+  if (!hit) { toast('「' + name + '」桌面端暂未支持，可继续在手机 TVBox 里操作'); return; }
+  const [id, label] = hit;
+  if (panQrDrives.includes(id)) { panLogin(id, label); return; }
+  panPaste(id, label); // 该网盘暂无可扫码通道：直接打开粘贴框
 }
 
 // 跑马灯速度：约 50px/秒（名字越长跑得越久，节奏恒定不忽快忽慢）
@@ -1598,9 +1605,9 @@ async function loadKeep() {
 }
 
 // ---------- 网盘登录 ----------
-const panIcons = { quark: '⚡', uc: '🌀', baidu: '🐾', ali: '☁️' };
-const panQrApps = { quark: '夸克 App', baidu: '百度 App', ali: '阿里云盘 App', uc: 'UC网盘 App' };
-const panQrDrives = ['quark', 'baidu', 'ali', 'uc'];
+const panIcons = { quark: '⚡', uc: '🌀', baidu: '🐾', ali: '☁️', bili: '📺', xunlei: '🦅', guangya: '🦆', cloud189: '🌥️', cloud123: '🔢', '115': '💾', uctoken: '🔑' };
+const panQrApps = { quark: '夸克 App', baidu: '百度 App', ali: '阿里云盘 App', uc: 'UC网盘 App', bili: '哔哩哔哩 App' };
+const panQrDrives = ['quark', 'baidu', 'ali', 'uc', 'bili'];
 async function loadPan() {
   const box = $('panCards');
   box.innerHTML = '<div class="status">读取中…</div>';

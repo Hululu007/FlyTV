@@ -94,11 +94,12 @@ public final class PanLogin {
         return new String(bos.toByteArray(), StandardCharsets.UTF_8);
     }
 
-    /** 生成二维码会话（drive: quark 夸克 / baidu 百度 / ali 阿里云盘 / uc UC网盘）。 */
+    /** 生成二维码会话（drive: quark/uc/baidu/ali/bili）。 */
     public static JsonObject qrStart(String drive) throws Exception {
         if ("baidu".equals(drive)) return qrStartBaidu();
         if ("ali".equals(drive) || "aliyun".equals(drive)) return qrStartAli();
         if ("uc".equals(drive)) return qrStartUC();
+        if ("bili".equals(drive) || "bilibili".equals(drive)) return qrStartBili();
         return qrStartQuark();
     }
 
@@ -107,6 +108,7 @@ public final class PanLogin {
         if ("baidu".equals(drive)) return qrPollBaidu(session);
         if ("ali".equals(drive) || "aliyun".equals(drive)) return qrPollAli(session);
         if ("uc".equals(drive)) return qrPollUC(session);
+        if ("bili".equals(drive) || "bilibili".equals(drive)) return qrPollBili(session);
         return qrPollQuark(session);
     }
 
@@ -431,6 +433,79 @@ public final class PanLogin {
         return out;
     }
 
+    // ================= 哔哩哔哩扫码 =================
+    // 官方 Web 扫码：generate 取 qrcode_key → poll 轮询 → 成功后 Set-Cookie 含 SESSDATA 等
+    private static final ConcurrentHashMap<String, Object[]> BILI = new ConcurrentHashMap<>(); // session -> [qrcode_key, jar]
+
+    static JsonObject qrStartBili() throws Exception {
+        LinkedHashMap<String, String> jar = new LinkedHashMap<>();
+        Resp r = get("https://passport.bilibili.com/x/passport-login/web/qrcode/generate?source=main-mini", jar);
+        JsonObject o = JsonUtil.parseObj(r.body);
+        JsonObject d = o == null ? null : o.getAsJsonObject("data");
+        String url = d == null ? "" : JsonUtil.str(d, "url", "");
+        String key = d == null ? "" : JsonUtil.str(d, "qrcode_key", "");
+        if (url.isEmpty() || key.isEmpty()) throw new Exception("获取B站二维码失败（接口返回异常，稍后再试）");
+        String session = UUID.randomUUID().toString().replace("-", "");
+        BILI.put(session, new Object[]{key, jar});
+        JsonObject out = new JsonObject();
+        out.addProperty("session", session);
+        out.addProperty("url", url);
+        return out;
+    }
+
+    static JsonObject qrPollBili(String session) throws Exception {
+        JsonObject out = new JsonObject();
+        Object[] st = session == null ? null : BILI.get(session);
+        if (st == null) {
+            out.addProperty("status", "expired");
+            out.addProperty("message", "二维码会话已失效，请刷新");
+            return out;
+        }
+        String key = String.valueOf(st[0]);
+        @SuppressWarnings("unchecked")
+        LinkedHashMap<String, String> jar = (LinkedHashMap<String, String>) st[1];
+        Resp r = get("https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key=" + enc(key) + "&source=main-mini", jar);
+        JsonObject o = JsonUtil.parseObj(r.body);
+        JsonObject d = o == null ? null : o.getAsJsonObject("data");
+        int code = d == null ? -1 : JsonUtil.integer(d, "code", -1);
+        if (code == 0) {
+            String cookie = joinCookies(jar);
+            if (cookie.isEmpty() || !cookie.contains("SESSDATA")) {
+                out.addProperty("status", "wait");
+                out.addProperty("message", "已确认，Cookie 未取到，请重试");
+                return out;
+            }
+            String nick = "";
+            try {
+                Resp nav = get("https://api.bilibili.com/x/web-interface/nav", jar);
+                JsonObject no = JsonUtil.parseObj(nav.body);
+                JsonObject nd = no == null ? null : no.getAsJsonObject("data");
+                if (nd != null) nick = JsonUtil.str(nd, "uname", "");
+            } catch (Exception ignored) { }
+            saveManual("bili", cookie);
+            BILI.remove(session);
+            out.addProperty("status", "ok");
+            out.addProperty("nickname", nick);
+            out.addProperty("member", "");
+            out.addProperty("message", "登录成功");
+            return out;
+        }
+        if (code == 86090) {
+            out.addProperty("status", "wait");
+            out.addProperty("message", "已扫码，请在手机上确认登录");
+            return out;
+        }
+        if (code == 86038) {
+            BILI.remove(session);
+            out.addProperty("status", "expired");
+            out.addProperty("message", "二维码已失效，请刷新");
+            return out;
+        }
+        out.addProperty("status", "wait");
+        out.addProperty("message", "等待扫码…");
+        return out;
+    }
+
     /** 带自定义读超时的 GET（用于长轮询接口，如百度 unicast）。 */
     static Resp getTO(String url, LinkedHashMap<String, String> jar, int readMs) throws Exception {        Resp out = new Resp();
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
@@ -599,27 +674,51 @@ public final class PanLogin {
         } catch (Exception ignored) { }
     }
 
-    /** 手动粘贴 cookie 保存（任意网盘：quark / uc / baidu）。 */
+    /** 各网盘 Cookie/Token 的文件名（jar 仓库读取的名字 + 兼容名）。 */
+    public static String[] cookieNames(String drive) {
+        switch (drive == null ? "" : drive) {
+            case "quark": return new String[]{"quark_cookie.txt", "quark_cookie"};
+            case "uc": return new String[]{"uc_cookie.txt", "uc_cookie"};
+            case "uctoken": return new String[]{"uc_token.txt", "uc_token"};
+            case "baidu": return new String[]{"baidu_cookie.txt", "baidu_cookie", "baidu.txt", "baidu"};
+            case "ali": case "aliyun": return new String[]{"ali_cookie.txt", "ali_cookie"};
+            case "cloud123": return new String[]{"cloud123.txt", "cloud123"};
+            case "xunlei": return new String[]{"xunlei.txt", "xunlei"};
+            case "guangya": return new String[]{"guangya.txt", "guangya"};
+            case "cloud189": return new String[]{"cloud189.txt", "cloud189"};
+            case "bili": return new String[]{"bili_cookie.txt", "bili_cookie"};
+            case "115": return new String[]{"115.txt", "115"};
+            default: return new String[]{drive + "_cookie.txt", drive + "_cookie"};
+        }
+    }
+
+    /** 手动粘贴 cookie/token 保存（任意网盘：quark/uc/baidu/ali/uctoken/bili/xunlei/guangya/cloud189/cloud123/115）。 */
     public static JsonObject saveManual(String drive, String cookie) throws Exception {
-        String base = "quark".equals(drive) ? "quark_cookie"
-                : "uc".equals(drive) ? "uc_cookie"
-                : "ali".equals(drive) ? "ali_cookie"
-                : "baidu_cookie";
         cookie = cookie == null ? "" : cookie.trim().replace("\r", "").replace("\n", " ");
         JsonObject out = new JsonObject();
         if (cookie.isEmpty()) {
             out.addProperty("error", "Cookie 不能为空");
             return out;
         }
-        File dir = new File(AppPaths.JarCache, "files" + File.separator + "Pizazz");
-        if (!dir.exists()) dir.mkdirs();
+        String[] names = cookieNames(drive);
+        String base = names[0].replace(".txt", "");
         JsonObject j = new JsonObject();
         j.addProperty("cookie", cookie);
         j.addProperty("time", System.currentTimeMillis());
         String text = j.toString();
-        writeUtf8(new File(dir, base + ".txt"), text);
-        writeUtf8(new File(dir, base), text);
-        File cfg = new File(dir, "config.json");
+        String[] dirs = {
+                AppPaths.JarCache + "\\files" + File.separator + "Pizazz",
+                AppPaths.JarCache + "\\files" + File.separator + "lzxw",
+                (System.getenv("TEMP") == null ? "." : System.getenv("TEMP")) + File.separator + "TVBox"
+        };
+        for (String dirPath : dirs) {
+            try {
+                File dir = new File(dirPath);
+                if (!dir.exists()) dir.mkdirs();
+                for (String name : names) writeUtf8(new File(dir, name), text);
+            } catch (Exception ignored) { }
+        }
+        File cfg = new File(new File(AppPaths.JarCache, "files" + File.separator + "Pizazz"), "config.json");
         if (cfg.exists()) {
             try {
                 JsonObject c = JsonUtil.parseObj(new String(Files.readAllBytes(cfg.toPath()), StandardCharsets.UTF_8));
@@ -629,12 +728,6 @@ public final class PanLogin {
                 }
             } catch (Exception ignored) { }
         }
-        try {
-            File tmp = new File(System.getenv("TEMP") == null ? "." : System.getenv("TEMP"), "TVBox");
-            if (!tmp.exists()) tmp.mkdirs();
-            writeUtf8(new File(tmp, base + ".txt"), text);
-            writeUtf8(new File(tmp, base), text);
-        } catch (Exception ignored) { }
         out.addProperty("ok", true);
         out.addProperty("message", "已保存");
         return out;
