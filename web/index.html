@@ -1728,7 +1728,9 @@ async function loadSyncStatus() {
     if ($('syncUrl') && document.activeElement !== $('syncUrl')) $('syncUrl').value = j.url || '';
     if ($('syncAuto')) $('syncAuto').checked = j.auto !== false;
     if ($('syncInterval')) $('syncInterval').value = String(j.interval || 1);
+    if ($('syncPass')) $('syncPass').placeholder = j.hasPass ? '已设置口令（留空 = 不修改）' : '请输入同步口令（加密用）';
     const parts = [j.url ? '已配置' : '未配置'];
+    parts.push(j.hasPass ? '口令已设置 ✓' : '⚠️ 未设置口令');
     if (j.lastUp) parts.push('上次上传 ' + new Date(+j.lastUp).toLocaleString());
     if (j.lastDown) parts.push('上次下载 ' + new Date(+j.lastDown).toLocaleString());
     $('syncStatus').textContent = parts.join(' · ');
@@ -1746,8 +1748,12 @@ async function syncSaveCfg() {
 }
 async function saveSyncCfg() {
   if (!($('syncUrl').value || '').trim()) { toast('请填写同步地址'); return; }
-  try { await syncSaveCfg(); toast('同步配置已保存'); loadSyncStatus(); }
-  catch (e) { toast('保存失败: ' + e.message); }
+  const typedPass = ($('syncPass').value || '').length > 0;
+  try {
+    await syncSaveCfg();
+    toast(typedPass ? '已保存（口令已更新——请点「⬆️ 上传到云端」让新口令生效）' : '同步配置已保存（口令框清空属于正常，已保存在引擎里）');
+    loadSyncStatus();
+  } catch (e) { toast('保存失败: ' + e.message); }
 }
 async function syncUpload() {
   if (!($('syncUrl').value || '').trim()) { toast('请先填写同步地址'); return; }
