@@ -42,6 +42,7 @@ public final class Sync {
         o.addProperty("url", url);
         o.addProperty("hasPass", !Setting.getString("sync_pass", "").isEmpty());
         o.addProperty("auto", Setting.getBool("sync_auto", true));
+        o.addProperty("interval", Setting.getInt("sync_interval", 1));
         o.addProperty("lastUp", Setting.getString("sync_last_up", ""));
         o.addProperty("lastDown", Setting.getString("sync_last_down", ""));
         return o;
@@ -53,6 +54,8 @@ public final class Sync {
     public static String saveJson(String url, String pass) { return save(url, pass).toString(); }
 
     public static String saveJson3(String url, String pass, String auto) { return save(url, pass, auto).toString(); }
+
+    public static String saveJson4(String url, String pass, String auto, String interval) { return save(url, pass, auto, interval).toString(); }
 
     public static String autoJson() {
         try { return autoSync().toString(); } catch (Exception e) { return errJson(e); }
@@ -72,9 +75,11 @@ public final class Sync {
         return o.toString();
     }
 
-    public static JsonObject save(String url, String pass) { return save(url, pass, null); }
+    public static JsonObject save(String url, String pass) { return save(url, pass, null, null); }
 
-    public static JsonObject save(String url, String pass, String auto) {
+    public static JsonObject save(String url, String pass, String auto) { return save(url, pass, auto, null); }
+
+    public static JsonObject save(String url, String pass, String auto, String interval) {
         JsonObject o = new JsonObject();
         url = url == null ? "" : url.trim();
         if (!url.isEmpty() && !url.startsWith("http")) {
@@ -84,6 +89,12 @@ public final class Sync {
         Setting.put("sync_url", url);
         if (pass != null && !pass.isEmpty()) Setting.put("sync_pass", pass);
         if (auto != null && !auto.isEmpty()) Setting.put("sync_auto", "1".equals(auto) || "true".equalsIgnoreCase(auto));
+        if (interval != null && !interval.isEmpty()) {
+            try {
+                int iv = Integer.parseInt(interval.trim());
+                if (iv >= 1 && iv <= 60) Setting.put("sync_interval", iv);
+            } catch (Exception ignored) { }
+        }
         o.addProperty("ok", true);
         return o;
     }
@@ -312,25 +323,31 @@ public final class Sync {
         return o;
     }
 
-    /** 自动同步线程：每 5 分钟一次（sync_auto 开关，默认开）。 */
+    /** 自动同步线程：按设置间隔（默认 2 分钟）拉取合并 + 有变化回传；15 秒粒度检查，改设置即时生效。 */
     public static void startAutoSync() {
         Thread t = new Thread(() -> {
             try { Thread.sleep(60000); } catch (InterruptedException ignored) { return; }
+            long last = 0;
             while (true) {
                 try {
-                    if (Setting.getBool("sync_auto", true)) {
+                    int iv = Setting.getInt("sync_interval", 1);
+                    if (iv < 1) iv = 1;
+                    if (iv > 60) iv = 60;
+                    long now = System.currentTimeMillis();
+                    if (Setting.getBool("sync_auto", true) && now - last >= iv * 60_000L) {
+                        last = now;
                         JsonObject r = autoSync();
                         if (JsonUtil.bool(r, "pulled", false) || JsonUtil.bool(r, "pushed", false)) {
                             Logger.d("AutoSync", "自动同步 拉取=" + JsonUtil.bool(r, "pulled", false) + " 回传=" + JsonUtil.bool(r, "pushed", false));
                         }
                     }
                 } catch (Exception e) { Logger.d("AutoSync", "异常: " + e.getMessage()); }
-                try { Thread.sleep(5 * 60 * 1000); } catch (InterruptedException ignored) { return; }
+                try { Thread.sleep(15 * 1000); } catch (InterruptedException ignored) { return; }
             }
         }, "auto-sync");
         t.setDaemon(true);
         t.start();
-        Logger.d("AutoSync", "自动同步已启动（每 5 分钟，历史/收藏）");
+        Logger.d("AutoSync", "自动同步已启动（默认每 1 分钟，可设置 1-60）");
     }
 
     // ---------- 内部实现 ----------

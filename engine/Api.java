@@ -54,7 +54,7 @@ public final class Api {
                 case "/api/config/delete": return configDelete(p);
                 case "/api/cache/clear": return cacheClear(p);
                 case "/api/sync/status": return Sync.statusJson();
-                case "/api/sync/save": return Sync.saveJson3(p.getOrDefault("url", ""), p.getOrDefault("pass", ""), p.getOrDefault("auto", ""));
+                case "/api/sync/save": return Sync.saveJson4(p.getOrDefault("url", ""), p.getOrDefault("pass", ""), p.getOrDefault("auto", ""), p.getOrDefault("interval", ""));
                 case "/api/sync/upload": return Sync.uploadJson();
                 case "/api/sync/download": return Sync.downloadJson();
                 case "/api/sync/auto": return Sync.autoJson();

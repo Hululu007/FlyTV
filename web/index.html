@@ -771,10 +771,18 @@
             </div>
             <div class="srow">
               <span class="k">自动同步（历史/收藏）</span>
-              <span class="v">
+              <span class="v" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
                 <label style="cursor:pointer;display:flex;gap:6px;align-items:center">
-                  <input type="checkbox" id="syncAuto" onchange="saveSyncCfg()"> 每 5 分钟自动同步
+                  <input type="checkbox" id="syncAuto" onchange="saveSyncCfg()"> 开启，每
                 </label>
+                <select id="syncInterval" class="combo2" style="width:auto;max-width:110px;padding:5px 10px" onchange="saveSyncCfg()">
+                  <option value="1">1 分钟</option>
+                  <option value="2">2 分钟</option>
+                  <option value="5">5 分钟</option>
+                  <option value="10">10 分钟</option>
+                  <option value="30">30 分钟</option>
+                </select>
+                <span>同步一次</span>
               </span>
             </div>
             <div class="srow">
@@ -1719,6 +1727,7 @@ async function loadSyncStatus() {
     const j = await api('sync/status');
     if ($('syncUrl') && document.activeElement !== $('syncUrl')) $('syncUrl').value = j.url || '';
     if ($('syncAuto')) $('syncAuto').checked = j.auto !== false;
+    if ($('syncInterval')) $('syncInterval').value = String(j.interval || 1);
     const parts = [j.url ? '已配置' : '未配置'];
     if (j.lastUp) parts.push('上次上传 ' + new Date(+j.lastUp).toLocaleString());
     if (j.lastDown) parts.push('上次下载 ' + new Date(+j.lastDown).toLocaleString());
@@ -1729,7 +1738,8 @@ async function syncSaveCfg() {
   const url = ($('syncUrl').value || '').trim();
   const pass = ($('syncPass').value || '');
   const auto = $('syncAuto') && $('syncAuto').checked ? '1' : '0';
-  const j = await apiPost('sync/save', { url, pass, auto });
+  const interval = $('syncInterval') ? $('syncInterval').value : '1';
+  const j = await apiPost('sync/save', { url, pass, auto, interval });
   if (j.error) throw new Error(j.error);
   $('syncPass').value = '';
   return j;
@@ -2427,6 +2437,18 @@ function reportHistory(force) {
     position: pos, duration: dur,
   }).catch(() => {});
   saveNowPlaying();
+  if (force) scheduleCloudPush();
+}
+
+// 关片/暂停等强制上报后：3 秒防抖把历史推到云端（自动同步开启时）
+let cloudPushTimer = null;
+function scheduleCloudPush() {
+  clearTimeout(cloudPushTimer);
+  cloudPushTimer = setTimeout(() => {
+    api('sync/status').then(st => {
+      if (st && st.url && st.auto !== false) return api('sync/auto');
+    }).catch(() => {});
+  }, 3000);
 }
 
 // 关闭页面/刷新/切后台时的兜底上报（keepalive 保证请求发出）
