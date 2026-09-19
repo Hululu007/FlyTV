@@ -589,7 +589,7 @@
 
       <!-- 历史 -->
       <div class="panel" id="panelHistory">
-        <div class="title-row">历史记录 <button class="btn ghost sm" onclick="loadHistory()">刷新</button></div>
+        <div class="title-row">历史记录 <button class="btn ghost sm" onclick="syncThenHistory()">刷新</button></div>
         <div class="grid" id="historyGrid"></div>
         <div class="status" id="historyStatus"></div>
       </div>
@@ -1505,7 +1505,7 @@ function fmtTime(ms) {
   return h > 0 ? `${h}:${p(m)}:${p(ss)}` : `${m}:${p(ss)}`;
 }
 
-// 打开历史记录：先拉取一次云端（合并最新进度），再显示列表
+// 打开历史记录：先拉取一次云端（合并最新进度），再显示列表；页面开着时每 15 秒自动刷新
 async function syncThenHistory() {
   try {
     const st = await api('sync/status');
@@ -1516,6 +1516,19 @@ async function syncThenHistory() {
     }
   } catch (e) { /* 同步失败不影响本地显示 */ }
   loadHistory();
+  startHistoryPoll();
+}
+let histPollTimer = null;
+function startHistoryPoll() {
+  clearInterval(histPollTimer);
+  histPollTimer = setInterval(async () => {
+    if (curPanel !== 'history') { clearInterval(histPollTimer); histPollTimer = null; return; }
+    try {
+      const st = await api('sync/status');
+      if (st && st.url) await api('sync/auto');
+    } catch (e) { }
+    loadHistory();
+  }, 15000);
 }
 async function loadHistory() {
   $('historyStatus').textContent = '加载中…'; $('historyGrid').innerHTML = '';
@@ -2443,18 +2456,18 @@ function reportHistory(force) {
     position: pos, duration: dur,
   }).catch(() => {});
   saveNowPlaying();
-  if (force) scheduleCloudPush();
+  if (force) scheduleCloudPush(3000); else scheduleCloudPush(20000);
 }
 
-// 关片/暂停等强制上报后：3 秒防抖把历史推到云端（自动同步开启时）
+// 播放中/关片后：防抖把历史推到云端（自动同步开启时）
 let cloudPushTimer = null;
-function scheduleCloudPush() {
+function scheduleCloudPush(delay) {
   clearTimeout(cloudPushTimer);
   cloudPushTimer = setTimeout(() => {
     api('sync/status').then(st => {
       if (st && st.url && st.auto !== false) return api('sync/auto');
     }).catch(() => {});
-  }, 3000);
+  }, delay || 3000);
 }
 
 // 关闭页面/刷新/切后台时的兜底上报（keepalive 保证请求发出）

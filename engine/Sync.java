@@ -285,17 +285,18 @@ public final class Sync {
         JsonObject o = new JsonObject();
         if (url.isEmpty() || pass.isEmpty()) { o.addProperty("skip", true); return o; }
         String hurl = historyUrl(url);
-        boolean pulled = false;
+        long histBefore = Stores.historyRevision(), keepBefore = Stores.keepRevision();
         byte[] blob = get(hurl);
         if (blob != null) {
             String json = new String(gunzip(decrypt(blob, pass)), StandardCharsets.UTF_8);
             JsonObject bundle = JsonUtil.parseObj(json);
             JsonObject files = bundle == null ? null : bundle.getAsJsonObject("files");
             if (files != null) {
-                if (files.has("history.json")) { mergeHistoryText(files.get("history.json").getAsString()); pulled = true; }
-                if (files.has("keep.json")) { mergeKeepText(files.get("keep.json").getAsString()); pulled = true; }
+                if (files.has("history.json")) mergeHistoryText(files.get("history.json").getAsString());
+                if (files.has("keep.json")) mergeKeepText(files.get("keep.json").getAsString());
             }
         }
+        boolean pulled = Stores.historyRevision() != histBefore || Stores.keepRevision() != keepBefore;
         long hr = Stores.historyRevision(), kr = Stores.keepRevision();
         boolean pushed = false;
         if (pulled || hr != lastHistRev || kr != lastKeepRev) {
