@@ -39,13 +39,92 @@ public final class Sync {
     public static JsonObject status() {
         JsonObject o = new JsonObject();
         String url = Setting.getString("sync_url", "");
+        String pass = Setting.getString("sync_pass", "");
         o.addProperty("url", url);
-        o.addProperty("hasPass", !Setting.getString("sync_pass", "").isEmpty());
+        o.addProperty("hasPass", !pass.isEmpty());
         o.addProperty("auto", Setting.getBool("sync_auto", true));
         o.addProperty("interval", Setting.getInt("sync_interval", 1));
         o.addProperty("lastUp", Setting.getString("sync_last_up", ""));
         o.addProperty("lastDown", Setting.getString("sync_last_down", ""));
+        // 单链接与分享码：Go 服务的 /d/ 地址 → 生成加密 flytv:// 分享码；其它地址退回 url?key= 形式
+        String link = url;
+        String code = "";
+        java.util.regex.Matcher dm = java.util.regex.Pattern
+                .compile("^https?://([^/]+)/d/([A-Za-z0-9_-]+)(?:\\?.*)?$").matcher(url);
+        if (dm.find() && !pass.isEmpty()) {
+            try {
+                String payload = "{\"s\":\"" + jsonEscape(dm.group(1)) + "\",\"t\":\"" + jsonEscape(dm.group(2)) + "\",\"k\":\"" + jsonEscape(pass) + "\"}";
+                code = "flytv://" + encLink(payload);
+                link = code;
+            } catch (Exception ignored) { }
+        }
+        if (code.isEmpty()) {
+            if (!url.isEmpty() && !pass.isEmpty()) {
+                String sep = url.contains("?") ? "&" : "?";
+                try { link = url + sep + "key=" + java.net.URLEncoder.encode(pass, "UTF-8"); } catch (Exception e) { link = url + sep + "key=" + pass; }
+            }
+            if (!url.isEmpty() && !pass.isEmpty()) {
+                try {
+                    JsonObject j = new JsonObject();
+                    j.addProperty("u", url);
+                    j.addProperty("k", pass);
+                    code = "flytv://" + Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(j.toString().getBytes(StandardCharsets.UTF_8));
+                } catch (Exception ignored) { }
+            }
+        }
+        o.addProperty("link", link);
+        if (!code.isEmpty()) o.addProperty("code", code);
         return o;
+    }
+
+    /** 解析同步输入：支持 ①URL?key=xxx ②flytv://<AES加密分享码> ③flytv://<base64 JSON 旧版>。返回 [url, key]。 */
+    static String[] parseLink(String input) {
+        if (input == null) return null;
+        String s = input.trim();
+        if (s.isEmpty()) return null;
+        if (s.startsWith("flytv://")) {
+            String b64 = s.substring("flytv://".length()).trim();
+            // ① 新版分享码：AES-GCM 加密的 {s:服务器, t:令牌, k:key}
+            try {
+                byte[] blob = Base64.getUrlDecoder().decode(b64);
+                String plain = new String(linkDecrypt(blob), StandardCharsets.UTF_8);
+                JsonObject o = JsonUtil.parseObj(plain);
+                if (o != null) {
+                    String host = JsonUtil.str(o, "s", "");
+                    String token = JsonUtil.str(o, "t", "");
+                    String key = JsonUtil.str(o, "k", "");
+                    if (!host.isEmpty() && !token.isEmpty()) {
+                        String url = "http://" + host + "/d/" + token;
+                        if (!key.isEmpty()) {
+                            try { url += "?key=" + java.net.URLEncoder.encode(key, "UTF-8"); } catch (Exception e) { url += "?key=" + key; }
+                        }
+                        return new String[]{ url, key };
+                    }
+                }
+            } catch (Exception ignored) { }
+            // ② 旧版分享码：base64 JSON {u:url, k:key}
+            try {
+                String json = new String(Base64.getUrlDecoder().decode(b64), StandardCharsets.UTF_8);
+                JsonObject o = JsonUtil.parseObj(json);
+                if (o == null) return null;
+                String u = JsonUtil.str(o, "u", "");
+                String k = JsonUtil.str(o, "k", "");
+                if (u.isEmpty()) return null;
+                return new String[]{ u, k };
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[?&#](?:key|k)=([^&#]+)").matcher(s);
+        if (m.find()) {
+            String key = m.group(1);
+            try { key = java.net.URLDecoder.decode(key, "UTF-8"); } catch (Exception ignored) { }
+            String url = s.substring(0, m.start());
+            while (url.endsWith("?") || url.endsWith("&") || url.endsWith("#")) url = url.substring(0, url.length() - 1);
+            return new String[]{ url, key };
+        }
+        return new String[]{ s, "" };
     }
 
     // JSON 包装（异常转 error 字段，Api 直接调用）
@@ -81,9 +160,15 @@ public final class Sync {
 
     public static JsonObject save(String url, String pass, String auto, String interval) {
         JsonObject o = new JsonObject();
+        // 单链接支持：输入可能是 URL?key=xxx 或 flytv:// 分享码 → 拆出真实 url 与口令
+        String[] parsed = parseLink(url);
+        if (parsed != null) {
+            if (!parsed[1].isEmpty()) pass = parsed[1];
+            url = parsed[0];
+        }
         url = url == null ? "" : url.trim();
         if (!url.isEmpty() && !url.startsWith("http")) {
-            o.addProperty("error", "同步地址需要以 http/https 开头（WebDAV）");
+            o.addProperty("error", "同步链接需要以 http 开头（或使用 flytv:// 分享码）");
             return o;
         }
         Setting.put("sync_url", url);
@@ -349,6 +434,44 @@ public final class Sync {
         t.setDaemon(true);
         t.start();
         Logger.d("AutoSync", "自动同步已启动（默认每 1 分钟，可设置 1-60）");
+    }
+
+    // ---------- 分享链接加密（AES-256-GCM；钥匙与 Go 服务端内置一致，改动需两端同步） ----------
+
+    private static final byte[] LINK_KEY = sha256Bytes("FlyTV-Link-v1-2026");
+
+    static byte[] sha256Bytes(String s) {
+        try {
+            return java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return new byte[32];
+        }
+    }
+
+    /** 生成 flytv:// 分享码（IV 前置 + AES-GCM，base64url 无填充）。 */
+    static String encLink(String json) throws Exception {
+        byte[] iv = new byte[12];
+        new SecureRandom().nextBytes(iv);
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(LINK_KEY, "AES"), new GCMParameterSpec(128, iv));
+        byte[] ct = c.doFinal(json.getBytes(StandardCharsets.UTF_8));
+        byte[] out = new byte[iv.length + ct.length];
+        System.arraycopy(iv, 0, out, 0, iv.length);
+        System.arraycopy(ct, 0, out, iv.length, ct.length);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(out);
+    }
+
+    static byte[] linkDecrypt(byte[] blob) throws Exception {
+        if (blob.length < 12 + 16) throw new Exception("分享码不完整");
+        byte[] iv = java.util.Arrays.copyOfRange(blob, 0, 12);
+        byte[] ct = java.util.Arrays.copyOfRange(blob, 12, blob.length);
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+        c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(LINK_KEY, "AES"), new GCMParameterSpec(128, iv));
+        return c.doFinal(ct);
+    }
+
+    static String jsonEscape(String s) {
+        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     // ---------- 内部实现 ----------
