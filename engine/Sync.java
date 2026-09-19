@@ -313,16 +313,19 @@ public final class Sync {
 
     // ---------- 自动同步（历史/收藏，独立小文件 history.dat） ----------
 
-    /** 由同步地址推导历史小文件地址（同目录 history.dat）。 */
+    /** 由同步地址推导历史小文件地址（token-hist：每人独立，符合同步服务 token 规则）。 */
     static String historyUrl(String url) {
         try {
             int q = url.indexOf('?');
             String base = q >= 0 ? url.substring(0, q) : url;
+            String qs = q >= 0 ? url.substring(q) : "";
             int slash = base.lastIndexOf('/');
-            if (slash < 0) return base + ".history.dat";
-            return base.substring(0, slash + 1) + "history.dat" + (q >= 0 ? url.substring(q) : "");
+            if (slash < 0) return base + "-hist" + qs;
+            String token = base.substring(slash + 1);
+            if (token.isEmpty()) return base + "history" + qs;
+            return base.substring(0, slash + 1) + token + "-hist" + qs;
         } catch (Exception e) {
-            return url + ".history.dat";
+            return url + "-hist";
         }
     }
 
