@@ -242,6 +242,9 @@ public final class SiteService {
             out.addProperty("year", JsonUtil.str(vod, "vod_year", ""));
             out.addProperty("area", JsonUtil.str(vod, "vod_area", ""));
             out.addProperty("typeName", JsonUtil.str(vod, "type_name", ""));
+            out.addProperty("actor", JsonUtil.str(vod, "vod_actor", ""));
+            out.addProperty("director", JsonUtil.str(vod, "vod_director", ""));
+            out.addProperty("lang", JsonUtil.str(vod, "vod_lang", ""));
             out.addProperty("desc", JsonUtil.str(vod, "vod_content", "").replaceAll("<[^>]+>", ""));
             out.add("flags", vibFlags(vod));
             out.addProperty("site", site.key);
@@ -344,6 +347,11 @@ public final class SiteService {
                 out.addProperty("parse", JsonUtil.integer(o, "parse", 0));
                 JsonElement h = o.get("header");
                 out.add("headers", h != null && h.isJsonObject() ? h.getAsJsonObject() : new JsonObject());
+                // 透传蜘蛛的提示语（如"还未登录百度账号,请前往【配置中心】登录"），别再让用户蒙在鼓里
+                String pmsg = JsonUtil.str(o, "msg", "");
+                if (pmsg.isEmpty()) pmsg = JsonUtil.str(o, "errMsg", "");
+                if (pmsg.isEmpty()) pmsg = JsonUtil.str(o, "message", "");
+                if (!pmsg.isEmpty()) out.addProperty("msg", pmsg);
                 return out;
             }
             // type0/1：id 即直链/待解析 URL

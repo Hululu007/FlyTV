@@ -90,6 +90,40 @@ public final class JarHost {
         }
     }
 
+    /** 简单健康检查：/config 能通即视为存活 */
+    public static boolean healthy() {
+        try {
+            String r = HttpUtil.get(baseUrl() + "/config", null, 1500);
+            return r != null;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static final AtomicBoolean watchdogStarted = new AtomicBoolean(false);
+
+    /** 看门狗：宿主崩溃/失联时自动拉起（每 15 秒检查一次；崩溃恢复的关键） */
+    public static void startWatchdog() {
+        if (!watchdogStarted.compareAndSet(false, true)) return;
+        Thread t = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(15000);
+                    if (!healthy()) {
+                        Logger.e("JarHost", "看门狗：宿主失联，自动重启…");
+                        stop();
+                        Thread.sleep(500);
+                        boolean ok = start();
+                        Logger.e("JarHost", "看门狗：重启" + (ok ? "成功" : "失败"));
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }, "jar-host-watchdog");
+        t.setDaemon(true);
+        t.start();
+    }
+
     private static void pumpLogs(Process p) {
         if (!logPumpStarted.compareAndSet(false, true)) return;
         Thread t = new Thread(() -> {

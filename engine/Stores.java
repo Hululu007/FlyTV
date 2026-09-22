@@ -157,6 +157,23 @@ public final class Stores {
         }
     }
 
+    /** 保存历史（保留记录原有 createTime，用于同步合并导入，避免排序被重置）。 */
+    public static void saveHistoryKeepTime(JsonObject item) {
+        if (Setting.incognito()) return;
+        synchronized (LOCK) {
+            int cid = JsonUtil.integer(item, "cid", 0);
+            String key = JsonUtil.str(item, "key", "");
+            histories().removeIf(h -> JsonUtil.integer(h, "cid", 0) == cid && key.equals(JsonUtil.str(h, "key", "")));
+            long ct = JsonUtil.lng(item, "createTime", 0);
+            item.addProperty("createTime", ct > 0 ? ct : now());
+            histories().add(item);
+            long deadline = now() - HISTORY_TIME;
+            histories().removeIf(h -> JsonUtil.lng(h, "createTime", 0) < deadline);
+            saveList(historyFile(), histories());
+            historyRevision++;
+        }
+    }
+
     public static void deleteHistory(int cid, String key) {
         synchronized (LOCK) {
             boolean removed = histories().removeIf(h -> JsonUtil.integer(h, "cid", 0) == cid && key.equals(JsonUtil.str(h, "key", "")));

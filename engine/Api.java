@@ -58,14 +58,19 @@ public final class Api {
                 case "/api/sync/upload": return Sync.uploadJson();
                 case "/api/sync/download": return Sync.downloadJson();
                 case "/api/sync/auto": return Sync.autoJson();
+                case "/api/update/check": return Update.checkJson();
+                case "/api/update/apply": return Update.applyJson();
+                case "/api/update/status": return Update.statusJson();
                 case "/api/device/scan": return deviceScan();
                 case "/api/device/sync": return deviceSync(p);
-                case "/api/danmaku": return Danmaku.fetch(p.getOrDefault("name", ""));
+                case "/api/danmaku": return Danmaku.fetch(p.getOrDefault("name", ""), p.getOrDefault("ep", ""));
                 case "/api/pan/drives": return panDrives();
                 case "/api/pan/logout": return panLogout(p);
                 case "/api/pan/qr": return PanLogin.qrStart(p.getOrDefault("drive", "quark")).toString();
                 case "/api/pan/qr/poll": return PanLogin.qrPoll(p.getOrDefault("drive", "quark"), p.getOrDefault("session", "")).toString();
                 case "/api/pan/cookie": return PanLogin.saveManual(p.getOrDefault("drive", "quark"), p.getOrDefault("cookie", "")).toString();
+                case "/api/pan/key/push": return PanKeys.pushJson();
+                case "/api/pan/key/pull": return PanKeys.pullJson();
                 case "/api/action/pan-login": return panLogin(p);
                 default: return null;
             }
@@ -333,6 +338,7 @@ public final class Api {
             o.addProperty("flag", JsonUtil.str(h, "vodFlag", ""));
             o.addProperty("remarks", JsonUtil.str(h, "vodRemarks", ""));
             o.addProperty("episodeUrl", JsonUtil.str(h, "episodeUrl", ""));
+            o.addProperty("playIndex", JsonUtil.integer(h, "playIndex", -1));
             o.addProperty("position", JsonUtil.lng(h, "position", -1));
             o.addProperty("duration", JsonUtil.lng(h, "duration", -1));
             o.addProperty("createTime", JsonUtil.lng(h, "createTime", 0));
@@ -360,6 +366,7 @@ public final class Api {
             h.addProperty("vodFlag", p.getOrDefault("flag", ""));
             h.addProperty("vodRemarks", p.getOrDefault("remarks", ""));
             h.addProperty("episodeUrl", p.getOrDefault("episodeUrl", ""));
+            h.addProperty("playIndex", (int) parseLong(p.getOrDefault("index", "-1")));
             h.addProperty("position", parseLong(p.getOrDefault("position", "-1")));
             h.addProperty("duration", parseLong(p.getOrDefault("duration", "-1")));
             h.addProperty("speed", 1);

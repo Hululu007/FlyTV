@@ -10,6 +10,7 @@ public final class Main {
         // 爬虫宿主预热（后台，不阻塞 Web 服务）
         new Thread(() -> {
             try { JarHost.start(); } catch (Exception e) { Logger.e("Main", "宿主启动异常: " + e); }
+            try { JarHost.startWatchdog(); } catch (Exception e) { Logger.e("Main", "宿主看门狗异常: " + e); }
         }, "jar-host-start").start();
         // 点播配置加载（后台；完成前 API 首访会等待，最多 25 秒）
         new Thread(() -> {
@@ -25,6 +26,12 @@ public final class Main {
         PanService.startKeepAlive();
         // 历史/收藏自动同步（每 5 分钟，云端 WebDAV）
         Sync.startAutoSync();
+        // WebSocket 实时通知（服务器一有变化立即同步；断线自动重连，长轮询兜底）
+        SyncWS.start();
+        // 网盘Key自动保鲜（cookie 变化就自动推送云端，防止别的设备拉到过期的）
+        PanKeys.startAutoPush();
+        // 清理上次自更新残留的临时目录
+        Update.cleanup();
 
         int port = Integer.parseInt(System.getProperty("flytv.port", System.getProperty("tvbox.port", "19978")));
         boolean lan = Setting.localServerLan();

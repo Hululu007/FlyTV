@@ -52,7 +52,7 @@ public final class Actions {
                         JsonObject mine = Stores.findHistory(cid, key);
                         if (mine == null || JsonUtil.lng(t, "createTime", 0) > JsonUtil.lng(mine, "createTime", 0)) {
                             t.addProperty("cid", cid);
-                            Stores.saveHistory(t);
+                            Stores.saveHistoryKeepTime(t);
                             n++;
                         }
                     }

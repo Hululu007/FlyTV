@@ -340,14 +340,12 @@ public final class PanService {
                     if (f.exists()) {
                         try { old = JsonUtil.parseObj(new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.UTF_8)); } catch (Exception ignored) { }
                     }
-                    if (old != null) {
-                        old.addProperty("cookie", cookie);
-                        text = old.toString();
-                    } else {
-                        JsonObject j = new JsonObject();
-                        j.addProperty("cookie", cookie);
-                        text = j.toString();
-                    }
+                    if (old == null) old = new JsonObject();
+                    old.addProperty("cookie", cookie);
+                    // 蜘蛛靠 nickname/member_type 非空判定"已登录"：缺失必须补上，否则落盘后会被判未登录
+                    if (JsonUtil.str(old, "nickname", "").isEmpty()) old.addProperty("nickname", "已登录");
+                    if (JsonUtil.str(old, "member_type", "").isEmpty()) old.addProperty("member_type", "SUPER_VIP");
+                    text = old.toString();
                     java.nio.file.Files.write(f.toPath(), text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 }
                 File cfg = new File(dir, "config.json");

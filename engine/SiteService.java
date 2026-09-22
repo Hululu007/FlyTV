@@ -242,6 +242,9 @@ public final class SiteService {
             out.addProperty("year", JsonUtil.str(vod, "vod_year", ""));
             out.addProperty("area", JsonUtil.str(vod, "vod_area", ""));
             out.addProperty("typeName", JsonUtil.str(vod, "type_name", ""));
+            out.addProperty("actor", JsonUtil.str(vod, "vod_actor", ""));
+            out.addProperty("director", JsonUtil.str(vod, "vod_director", ""));
+            out.addProperty("lang", JsonUtil.str(vod, "vod_lang", ""));
             out.addProperty("desc", JsonUtil.str(vod, "vod_content", "").replaceAll("<[^>]+>", ""));
             out.add("flags", vibFlags(vod));
             out.addProperty("site", site.key);

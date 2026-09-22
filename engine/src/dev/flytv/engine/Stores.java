@@ -21,6 +21,15 @@ public final class Stores {
     public static long historyRevision() { return historyRevision; }
     public static long keepRevision() { return keepRevision; }
 
+    /** 清空内存缓存（云同步还原后强制重新读盘）。 */
+    public static void clearCache() {
+        synchronized (LOCK) {
+            configs = null;
+            histories = null;
+            keeps = null;
+        }
+    }
+
     private static File configFile() { return new File(AppPaths.Root, "configs.json"); }
     private static File historyFile() { return new File(AppPaths.Root, "history.json"); }
     private static File keepFile() { return new File(AppPaths.Root, "keep.json"); }
@@ -140,6 +149,23 @@ public final class Stores {
             String key = JsonUtil.str(item, "key", "");
             histories().removeIf(h -> JsonUtil.integer(h, "cid", 0) == cid && key.equals(JsonUtil.str(h, "key", "")));
             item.addProperty("createTime", now());
+            histories().add(item);
+            long deadline = now() - HISTORY_TIME;
+            histories().removeIf(h -> JsonUtil.lng(h, "createTime", 0) < deadline);
+            saveList(historyFile(), histories());
+            historyRevision++;
+        }
+    }
+
+    /** 保存历史（保留记录原有 createTime，用于同步合并导入，避免排序被重置）。 */
+    public static void saveHistoryKeepTime(JsonObject item) {
+        if (Setting.incognito()) return;
+        synchronized (LOCK) {
+            int cid = JsonUtil.integer(item, "cid", 0);
+            String key = JsonUtil.str(item, "key", "");
+            histories().removeIf(h -> JsonUtil.integer(h, "cid", 0) == cid && key.equals(JsonUtil.str(h, "key", "")));
+            long ct = JsonUtil.lng(item, "createTime", 0);
+            item.addProperty("createTime", ct > 0 ? ct : now());
             histories().add(item);
             long deadline = now() - HISTORY_TIME;
             histories().removeIf(h -> JsonUtil.lng(h, "createTime", 0) < deadline);

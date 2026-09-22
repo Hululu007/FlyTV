@@ -88,18 +88,35 @@ public final class VodConfig {
         }
     }
 
-    /** 启动加载：优先 Setting.configVod，回退 configs.json 最新记录。 */
+    /** 启动加载：优先 Setting.configVod，失败则按记录顺序逐个回退，避免单个坏配置导致站点空窗。 */
     public static void loadStartup() {
+        String first = "";
         try {
-            String url = Setting.configVod();
-            if (url == null || url.isEmpty()) {
-                List<JsonObject> list = Stores.getConfigs(0);
-                if (!list.isEmpty()) url = JsonUtil.str(list.get(0), "url", "");
+            first = Setting.configVod();
+            if (first != null && !first.isEmpty()) {
+                load(first);
+                Logger.d("VodConfig", "启动配置已加载: " + first);
+                return;
             }
-            if (url == null || url.isEmpty()) { Logger.d("VodConfig", "无可用配置"); return; }
-            load(url);
         } catch (Exception e) {
-            Logger.e("VodConfig", "启动配置加载失败: " + e);
+            Logger.e("VodConfig", "启动配置加载失败(" + (first == null ? "" : first) + "): " + e.getMessage());
+        }
+        try {
+            for (JsonObject c : Stores.getConfigs(0)) {
+                String u = JsonUtil.str(c, "url", "");
+                if (u.isEmpty() || u.equals(first)) continue;
+                try {
+                    load(u);
+                    Setting.setConfigVod(u); // 记住可用的那份，下次启动直接命中
+                    Logger.d("VodConfig", "已自动切换到可用配置: " + u + " → " + visibleSiteCount() + " 站点");
+                    return;
+                } catch (Exception e2) {
+                    Logger.e("VodConfig", "配置不可用(" + u + "): " + e2.getMessage());
+                }
+            }
+            Logger.e("VodConfig", "所有配置均加载失败");
+        } catch (Exception e) {
+            Logger.e("VodConfig", "启动配置加载异常: " + e);
         }
     }
 
