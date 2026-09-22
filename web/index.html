@@ -336,12 +336,13 @@
     position: fixed; inset: 0; z-index: -1; opacity: .22; filter: blur(60px) saturate(1.4);
     background-size: cover; background-position: center;
   }
-  .detail-inner { max-width: 1040px; margin: 0 auto; padding: 24px 24px 90px; }
+  .detail-inner { max-width: 1320px; margin: 0 auto; padding: 24px 24px 90px; }
+.pan-bar { display: flex; gap: 8px; margin: -4px 0 14px; }
   .detail-head { display: flex; gap: 24px; margin-bottom: 22px; }
-  .detail-head .pic {
-    width: 190px; aspect-ratio: 2/3; border-radius: var(--radius); overflow: hidden; background: var(--card);
-    border: 1px solid var(--stroke); flex: none; position: relative; box-shadow: var(--shadow);
-  }
+.detail-head .pic {
+width: 480px; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden; background: #000;
+border: 1px solid var(--stroke); flex: none; position: relative; box-shadow: var(--shadow);
+}
   .detail-head .pic img { width: 100%; height: 100%; object-fit: cover; }
   .detail-head .pic .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 44px; opacity: .25; }
   .detail-info h2 { font-size: 28px; margin-bottom: 10px; }
@@ -511,7 +512,7 @@
     .grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
     .search-mini input { width: 140px; }
     .detail-head { flex-direction: column; }
-    .detail-head .pic { width: 150px; }
+    .detail-head .pic { width: 100%; }
     .search-hero { margin-top: 4vh; }
   }
 </style>
@@ -759,15 +760,17 @@
           <div class="scard">
             <h3>数据同步（多设备一键搬家）</h3>
             <div class="srow">
-              <span class="k">同步地址（WebDAV）</span>
+              <span class="k">同步链接</span>
               <span class="v" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-                <input id="syncUrl" class="cfg-in" style="width:340px" placeholder="http://账号:密码@主机:端口/dav/backup.dat">
+                <input id="syncLink" class="cfg-in" style="width:340px" placeholder="粘贴 flytv://… 分享码（或同步地址），留空不改">
+                <button class="btn" onclick="saveSyncCfg()">保存</button>
               </span>
             </div>
             <div class="srow">
-              <span class="k">同步口令（加密用）</span>
-              <span class="v" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-                <input id="syncPass" class="cfg-in" type="password" placeholder="留空 = 不修改已保存的口令">
+              <span class="k">当前链接</span>
+              <span class="v" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+                <code id="syncLinkView" style="max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;padding:4px 8px;border-radius:6px;background:var(--chip-bg,rgba(128,128,128,.14))">未配置</code>
+                <button class="btn ghost sm" onclick="copySyncLink()">复制链接</button>
               </span>
             </div>
             <div class="srow">
@@ -794,13 +797,24 @@
                 <button class="btn ghost" onclick="syncDownload()">⬇️ 从云端下载</button>
               </span>
             </div>
+            <div class="srow">
+              <span class="k">网盘Key互传</span>
+              <span class="v" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+                <button class="btn ghost" onclick="panKeyPush()" title="把本机登录的网盘Key/画质等设置推送到云端">☁ 推送Key</button>
+                <button class="btn ghost" onclick="panKeyPull()" title="从云端拉取网盘Key/设置到本机（重启 FlyTV 后生效）">☁ 拉取Key</button>
+              </span>
+            </div>
             <div class="srow"><span class="k">状态</span><span class="v" id="syncStatus">-</span></div>
-            <div class="dim small">内容：点播配置 + 网盘登录（夸克/UC/百度/阿里）+ 引擎设置 + 历史 + 收藏。上传前 AES-256 加密（云端只存密文）；下载会覆盖本机配置与登录（自动备份 .bak），历史/收藏按时间合并。口令丢失无法解密，请牢记。</div>
+            <div class="dim small">新方式：复制 flytv:// 链接粘贴到其它设备即可同步（链接自带加密密钥，无需再填口令）。内容：点播配置 + 网盘登录（夸克/UC/百度/阿里）+ 引擎设置 + 历史 + 收藏。上传前 AES-256 加密（云端只存密文）；下载会覆盖本机配置与登录（自动备份 .bak），历史/收藏按时间合并。</div>
           </div>
 
           <div class="scard">
             <h3>关于</h3>
-            <div class="srow"><span class="k">版本</span><span class="v" style="color:var(--accent2);font-weight:600">v1.0.2 · 构建 2026-09-19</span></div>
+            <div class="srow"><span class="k">版本</span><span class="v" style="color:var(--accent2);font-weight:600" id="aboutVer">v1.0.38 · 构建 2026-09-22</span></div>
+            <div class="srow"><span class="k">软件更新</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
+              <span class="dim small" id="updHint"></span>
+              <button class="btn ghost sm" onclick="checkUpdate()">🔄 检查更新</button>
+            </span></div>
             <div class="srow"><span class="k">形态</span><span class="v">本地后台引擎 + Web 前台</span></div>
             <div class="srow"><span class="k">引擎端口</span><span class="v">9978 (API/Web) / 9790 (中继)</span></div>
             <div class="srow"><span class="k">浏览器播放</span><span class="v">H.264/AV1 4K 硬解 · HLS 自动</span></div>
@@ -814,23 +828,45 @@
 </div>
 
 <!-- 详情页 -->
+<style>
+.detail-head .pic video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:none; background:#000; cursor:pointer; }
+.detail-head .pic .plyr { position:absolute; inset:0; }
+.detail-head .pic .plyr__controls, .detail-head .pic .plyr__poster { display:none !important; }
+.detail-head .pic .prev-shield { position:absolute; inset:0; z-index:2; cursor:pointer; display:none; }
+.detail-head .pic .prev-badge { z-index:4; }
+.detail-head .pic .prev-close { z-index:4; }
+.player .box .plyr { width:100%; height:100%; }
+.detail-head .pic .prev-badge { position:absolute; left:6px; right:26px; bottom:6px; display:none; padding:4px 8px; border-radius:8px; background:rgba(0,0,0,.62); color:#fff; font-size:11px; line-height:1.4; cursor:pointer; }
+.detail-head .pic .prev-close { position:absolute; right:6px; top:6px; display:none; width:22px; height:22px; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:12px; text-align:center; line-height:22px; cursor:pointer; }
+.ep.previewing { outline:2px solid var(--accent2,#7c5cff); outline-offset:-2px; }
+</style>
 <div class="detail" id="detailPage">
   <div class="detail-bg" id="detailBg"></div>
   <div class="detail-inner">
     <button class="backbtn" onclick="closeDetail()">← 返回</button>
     <div class="detail-head">
-      <div class="pic"><div class="ph">🎬</div><img id="dPic" alt="" onerror="imgRetry(this)"></div>
+      <div class="pic"><div class="ph">🎬</div><img id="dPic" alt="" onerror="imgRetry(this)"><video id="dPrev" muted playsinline></video><div class="prev-shield" id="dPrevShield" onclick="if(dPrevCtx)play(dPrevCtx.flag,dPrevCtx.epUrl,(curVod&&curVod.siteKey)||'')"></div><div class="prev-badge" id="dPrevBadge"></div><div class="prev-close" id="dPrevClose" onclick="stopPreview(event)">✕</div></div>
       <div class="detail-info">
         <h2 id="dName"></h2>
         <div class="meta" id="dMeta"></div>
-        <div style="margin-bottom:14px">
+        <div class="meta" id="dInfoYear"></div>
+        <div class="meta" id="dInfoArea"></div>
+        <div class="meta" id="dInfoType"></div>
+        <div class="meta" id="dInfoLang"></div>
+        <div class="meta" id="dInfoSrc" style="margin-top:6px"></div>
+        <div class="meta" id="dInfoActor"></div>
+        <div class="meta" id="dInfoDirector"></div>
+        <div class="meta" id="dInfoUrl" style="word-break:break-all"></div>
+        <div style="margin:14px 0;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="dFullBtn">▶ 全屏播放</button>
+          <button class="btn ghost" id="dSwitchBtn">🔎 换源</button>
           <button class="btn ghost" id="dKeepBtn" onclick="toggleKeep()">☆ 收藏</button>
         </div>
         <div class="sec">简介</div>
         <div class="desc" id="dDesc"></div>
       </div>
     </div>
-    <div class="sec">播放线路</div>
+    <div class="sec" style="display:flex;justify-content:space-between;align-items:center">播放线路<button class="btn ghost sm" id="dOrderBtn" onclick="toggleEpOrder()">正序</button></div>
     <div class="tabs" id="dFlags"></div>
     <div class="episodes" id="dEps"></div>
   </div>
@@ -861,6 +897,22 @@
   </div>
 </div>
 
+<style>
+.upd-ovl{position:fixed;inset:0;background:rgba(5,8,16,.62);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:9999}
+.upd-box{width:min(430px,86vw);background:var(--panel-bg,#171a22);border:1px solid var(--hairline,rgba(255,255,255,.12));border-radius:16px;padding:22px 24px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+.upd-title{font-size:16px;font-weight:700;margin-bottom:10px}
+.upd-track{height:8px;border-radius:6px;background:var(--chip-bg,rgba(128,128,128,.18));overflow:hidden;margin-top:14px}
+.upd-bar{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--accent2,#7c5cff),var(--accent,#4f8cff));transition:width .25s}
+.upd-pct{font-size:12px;color:var(--text3);margin-top:6px;text-align:right;min-height:16px}
+</style>
+<div class="upd-ovl" id="updOvl">
+  <div class="upd-box">
+    <div class="upd-title">软件更新</div>
+    <div class="dim small" id="updMsg" style="min-height:34px;line-height:1.7"></div>
+    <div class="upd-track"><div class="upd-bar" id="updBar"></div></div>
+    <div class="upd-pct" id="updPct"></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script src="/web/libs/plyr.min.js"></script>
@@ -870,7 +922,9 @@
 const $ = id => document.getElementById(id);
 let curSite = '', curVod = null, curPlayTitle = '', curPanel = 'vod';
 let curEpsList = [];  // 详情页当前线路的集列表（播放上下文用）
-let hls = null, plyr = null;
+let pendingResume = null;  // 从历史点击的待续播（无集地址时用线路+集号+进度定位）
+let _resumePos = 0;       // 待恢复的播放进度（毫秒）
+let hls = null, plyr = null, bigAdopted = false;
 let sugIdx = -1, sugList = [], sugTimer = null, lastSugQ = '';
 
 function toast(msg) {
@@ -898,6 +952,65 @@ async function api(path, params) {
   return j;
 }
 async function apiPost(path, params) { return api(path, params); }
+
+// ---------- 软件更新 ----------
+let updPoll = null;
+async function loadAboutInfo() {
+  try { const j = await api('update/status'); if (j && j.version) $('aboutVer').textContent = 'v' + j.version + ' · 构建 ' + j.build; } catch (e) {}
+}
+async function checkUpdate() {
+  $('updHint').textContent = '检查中…';
+  try {
+    const j = await api('update/check');
+    $('updHint').textContent = '';
+    if (!j.hasNew) { toast('已是最新版本 v' + j.version); return; }
+    $('updHint').textContent = '发现新版本 v' + j.remoteVersion;
+    const mb = j.size ? (Math.round(j.size / 1048576 * 10) / 10 + ' MB') : '';
+    const msg = '发现新版本 v' + j.remoteVersion + (mb ? '（' + mb + '）' : '') + '\n\n' +
+      (j.notes ? j.notes + '\n\n' : '') + '现在下载并自动更新？完成后应用会自动重启。';
+    if (!confirm(msg)) return;
+    showUpd('正在准备更新…', 0);
+    const r = await api('update/apply');
+    if (r.error) { hideUpd(); toast(r.error); return; }
+    pollUpd();
+  } catch (e) { $('updHint').textContent = ''; toast('检查更新失败：' + e.message); }
+}
+function showUpd(msg, pct) { $('updOvl').style.display = 'flex'; $('updMsg').textContent = msg; setUpd(pct); }
+function hideUpd() { $('updOvl').style.display = 'none'; }
+function setUpd(pct) {
+  pct = Math.max(0, Math.min(100, pct || 0));
+  $('updBar').style.width = pct + '%';
+  $('updPct').textContent = pct + '%';
+}
+function pollUpd() {
+  if (updPoll) clearInterval(updPoll);
+  let n = 0;
+  updPoll = setInterval(async () => {
+    if (++n > 1200) { clearInterval(updPoll); hideUpd(); toast('更新超时，请重试'); return; }
+    try {
+      const s = await api('update/status');
+      if (!s || !s.phase || s.phase === 'idle') return;
+      if (s.phase === 'error') { clearInterval(updPoll); hideUpd(); toast('更新失败：' + (s.message || '未知错误')); return; }
+      setUpd(s.percent);
+      if (s.phase === 'downloading') $('updMsg').textContent = '正在下载新版本… ' + (s.percent || 0) + '%';
+      else $('updMsg').textContent = s.message || '正在更新…';
+      if (s.phase === 'restarting') {
+        setUpd(100);
+        $('updMsg').textContent = '更新完成，正在重启应用…';
+        clearInterval(updPoll);
+        waitReload(0);
+      }
+    } catch (e) { /* 引擎已退出（重启中） */ }
+  }, 500);
+}
+function waitReload(n) {
+  if (n > 90) { location.reload(); return; }
+  fetch('/api/update/status').then(r => { if (r.ok) location.reload(); else setTimeout(() => waitReload(n + 1), 1000); })
+    .catch(() => setTimeout(() => waitReload(n + 1), 1000));
+}
+async function autoCheckUpdate() {
+  try { const j = await api('update/check'); if (j && j.hasNew) toast('发现新版本 v' + j.remoteVersion + '（设置 → 关于 可一键更新）'); } catch (e) {}
+}
 
 // ---------- 面板切换 ----------
 function openPanel(name) {
@@ -1261,8 +1374,15 @@ async function pollSearch() {
     const j = await api('searchpoll', { id: searchState.id, from: searchState.from });
     searchState.from = j.total;
     (j.groups || []).forEach(g => searchState.groups.set(g.siteName, g.list));
-    renderSearchChips();
-    renderSearchResult();
+    // 只在数据有变化时重绘；搜索中最多每 2 秒重绘一次（避免每秒重绘/动画重播导致闪烁）
+    const fp = String(j.total || 0) + '|' + [...searchState.groups].map(([s, l]) => s + ':' + (l ? l.length : 0)).join(',');
+    const now = Date.now();
+    if (fp !== searchState.fp && (j.done || now - (searchState.lastRenderAt || 0) >= 2000)) {
+      searchState.fp = fp;
+      searchState.lastRenderAt = now;
+      renderSearchChips();
+      renderSearchResult();
+    }
     if (j.done) {
       clearInterval(searchPollTimer); searchPollTimer = null;
       let anyRes = false;
@@ -1315,23 +1435,26 @@ function renderSearchChips() {
 function renderSearchResult() {
   if (!searchState) return;
   const box = $('searchGrid');
+  const anim = !searchState.renderedOnce;   // 入场动画只在搜索的首轮播放，后续更新不再重播
+  searchState.renderedOnce = true;
   box.innerHTML = '';
   if (searchSiteFilter) {
-    renderGrid(box, searchState.groups.get(searchSiteFilter) || []);
+    renderGrid(box, searchState.groups.get(searchSiteFilter) || [], false, anim);
   } else {
     // 全部：平铺混排（结果交错，卡片带站点名）
-    renderGrid(box, searchAllItems());
+    renderGrid(box, searchAllItems(), false, anim);
   }
 }
 
 // ---------- 通用卡片渲染 ----------
-function renderGrid(grid, list, append) {
+function renderGrid(grid, list, append, anim) {
   if (!grid) return;
   if (!append) grid.innerHTML = '';
   list.forEach((v, idx) => {
     const c = document.createElement('div');
     c.className = 'card';
-    c.style.animationDelay = Math.min(idx * 22, 320) + 'ms';
+    if (anim === false) c.style.animation = 'none';
+    else c.style.animationDelay = Math.min(idx * 22, 320) + 'ms';
     c.innerHTML = `
       <div class="pic">
         <div class="ph">🎬</div>
@@ -1400,7 +1523,15 @@ async function openDetail(id, name, siteKey) {
   const page = $('detailPage');
   page.classList.add('show'); page.scrollTop = 0;
   const site = siteKey || curSite;
-  $('dName').textContent = name || ''; $('dMeta').textContent = '加载中…'; $('dDesc').textContent = '';
+    $('dName').textContent = name || ''; $('dMeta').textContent = '加载中…'; $('dDesc').textContent = '';
+    if ($('dInfoSrc')) $('dInfoSrc').textContent = '';
+    if ($('dInfoYear')) $('dInfoYear').textContent = '';
+    if ($('dInfoArea')) $('dInfoArea').textContent = '';
+    if ($('dInfoType')) $('dInfoType').textContent = '';
+    if ($('dInfoLang')) $('dInfoLang').textContent = '';
+    if ($('dInfoActor')) $('dInfoActor').textContent = '';
+    if ($('dInfoDirector')) $('dInfoDirector').textContent = '';
+    if ($('dInfoUrl')) $('dInfoUrl').textContent = '';
   $('dPic').style.display = 'none'; $('dPic').removeAttribute('src');
   $('detailBg').style.backgroundImage = '';
   $('dFlags').innerHTML = ''; $('dEps').innerHTML = '';
@@ -1411,10 +1542,34 @@ async function openDetail(id, name, siteKey) {
     curVod = j; curVod.siteKey = site;
     $('dName').textContent = j.name || name;
     if (j.pic) {
-      const dp = $('dPic'); dp.dataset.r = '0'; delete dp.dataset.base; dp.src = pic(j.pic); dp.style.display = 'block';
+      // 小播放器不显示海报：仅用作页面背景氛围图
       $('detailBg').style.backgroundImage = `url("${pic(j.pic)}")`;
     }
-    $('dMeta').textContent = [j.year, j.area, j.typeName || j.type, j.remarks].filter(Boolean).join(' · ');
+    try { const ph = document.querySelector('#detailPage .ph'); if (ph) ph.style.display = ''; } catch (er) {}
+    const box = document.querySelector('#detailPage .pic');
+    if (box) box.style.aspectRatio = '';
+    $('dMeta').textContent = j.remarks || '';
+    const setInfoRow = (id, label, v) => { const el = $(id); if (el) el.textContent = v ? (label + v) : ''; };
+    setInfoRow('dInfoYear', '年份：', j.year);
+    setInfoRow('dInfoArea', '地区：', j.area);
+    setInfoRow('dInfoType', '类型：', j.typeName || j.type);
+    setInfoRow('dInfoLang', '语言：', j.lang);
+    if ($('dInfoSrc')) $('dInfoSrc').textContent = (j.siteName || '') ? ('来源：' + j.siteName) : '';
+    if ($('dInfoActor')) $('dInfoActor').textContent = (j.actor || '') ? ('演员：' + j.actor) : '';
+    if ($('dInfoDirector')) $('dInfoDirector').textContent = (j.director || '') ? ('导演：' + j.director) : '';
+    try {
+      const e0 = ((j.flags || [])[0] || {}).episodes || [];
+      if ($('dInfoUrl') && e0.length) { $('dInfoUrl').textContent = '播放地址：' + (e0[0].url || ''); $('dInfoUrl').title = e0[0].url || ''; }
+    } catch (er) {}
+    const fb = $('dFullBtn');
+    if (fb) fb.onclick = () => {
+      const f0 = (curVod.flags || [])[0] || {};
+      const u = (dPrevCtx && dPrevCtx.epUrl) || (((f0.episodes || [])[0] || {}).url || '');
+      const fl = (dPrevCtx && dPrevCtx.flag) || f0.flag || '';
+      if (u) play(fl, u, curVod.siteKey);
+    };
+    const sb = $('dSwitchBtn');
+    if (sb) sb.onclick = () => { if (!curVod) return; openPanel('search'); $('sInput').value = curVod.name || ''; doSearchPage(); };
     $('dDesc').textContent = (j.desc || j.content || '').replace(/<[^>]+>/g, '');
     try {
       const keeps = await api('keep');
@@ -1430,15 +1585,92 @@ async function openDetail(id, name, siteKey) {
         document.querySelectorAll('#dFlags .tab').forEach(x => x.classList.remove('active'));
         d.classList.add('active');
         renderEps(f, j);
+        try { const e0 = (f.episodes || [])[0]; if (e0) previewEpisode(f.flag, e0.url, e0.name || ''); } catch (er) {}
       };
       flags.appendChild(d);
     });
     if (j.flags && j.flags.length) renderEps(j.flags[0], j);
+    // 待续播（从历史点进来、且记录没有集地址）：按线路+集号定位后续播，并恢复进度
+    let resumed = false;
+    if (pendingResume && pendingResume.site === site && pendingResume.vodId === id && j.flags && j.flags.length) {
+      const pr = pendingResume; pendingResume = null;
+      let fi = (j.flags || []).findIndex(f => f.flag === pr.flag);
+      if (fi < 0) fi = 0;
+      const f = j.flags[fi];
+      document.querySelectorAll('#dFlags .tab').forEach((x, k) => x.classList.toggle('active', k === fi));
+      renderEps(f, j);
+      const eps = f.episodes || [];
+      let ei = pr.index;
+      if ((ei < 0 || ei >= eps.length) && pr.remark) {
+        const k2 = eps.findIndex(e => (e.name || '') === pr.remark);
+        if (k2 >= 0) ei = k2;
+      }
+      if (ei >= 0 && ei < eps.length) {
+        _resumePos = pr.pos || 0;
+        const ep = eps[ei];
+        // 不自动进大屏：小窗直接从上次进度起播，用户点集数/全屏再续播
+        try { previewEpisode(f.flag, ep.url, ep.name || '', _resumePos); } catch (er) {}
+        if (_resumePos > 0) toast('上次看到 ' + fmtTime(_resumePos) + '，点播放从这里继续');
+        resumed = true; // 已定位续播：跳过下面的自动预览/查找
+      }
+    }
+    // 没走"直接续播"时：自动小窗预览首集（对齐手机端）
+    if (!resumed && j.flags && j.flags.length) {
+      const b0 = $('dPrevBadge');
+      if (b0) { b0.style.display = 'block'; b0.textContent = '预览加载中…'; b0.onclick = null; }
+      const c0 = $('dPrevClose'); if (c0) c0.style.display = 'block';
+      try {
+        const f0 = j.flags[0];
+        const e0 = (f0.episodes || [])[0];
+        if (e0) previewEpisode(f0.flag, e0.url, e0.name || '');
+      } catch (er) {}
+    }
+    // 任意入口打开详情：从服务端历史带出上次的线路/集号/进度（点播放时从此继续，手机看过的电脑也续得上）
+    if (!resumed && !pendingResume) {
+      api('history').then(hj => {
+        try {
+          const all = (hj && hj.list) || [];
+          let rec = all.find(x => (x.key || '') === (site + '@' + id));
+          if (!rec) {
+            // 跨站点兜底：同片名（忽略空格/括号等差异，如"兰香如故" vs "兰香如故（臻彩）"）且有进度的记录
+            const norm = (s) => String(s || '').replace(/[\s·・（）()【】\[\]《》!！:：\-—_]/g, '');
+            const nm = norm(j.name);
+            const same = all.filter(x => {
+              const n = norm(x.name);
+              if (!n || !nm || !(n === nm || n.indexOf(nm) >= 0 || nm.indexOf(n) >= 0)) return false;
+              return (x.position || 0) > 15000;
+            });
+            if (same.length) { same.sort((a, b) => (b.position || 0) - (a.position || 0)); rec = same[0]; }
+          }
+          if (!rec) return;
+          const pos = (typeof rec.position === 'number' && rec.position > 15000) ? rec.position : 0;
+          const idx = (typeof rec.playIndex === 'number' && rec.playIndex >= 0) ? rec.playIndex : -1;
+          if (!pos && idx < 0) return;
+          let fi2 = (j.flags || []).findIndex(x => x.flag === rec.flag);
+          if (fi2 < 0) fi2 = 0;
+          const f2 = (j.flags || [])[fi2];
+          if (!f2) return;
+          document.querySelectorAll('#dFlags .tab').forEach((x, k) => x.classList.toggle('active', k === fi2));
+          renderEps(f2, j);
+          if (idx >= 0 && f2.episodes && f2.episodes[idx]) updateEpActive(f2.episodes[idx].url);
+          if (pos) {
+            _resumePos = pos;
+            toast('上次看到 ' + fmtTime(pos) + '，点播放将从这里继续');
+            // 小窗预览若正在播这一集，也直接跳到该进度（打开即可看到上次的位置）
+            try {
+              const preEp = (idx >= 0 && f2.episodes) ? f2.episodes[idx] : null;
+              if (preEp && dPrevCtx && dPrevCtx.epUrl === preEp.url) previewEpisode(f2.flag, preEp.url, preEp.name || '', pos);
+            } catch (e) {}
+          }
+        } catch (e) {}
+      }).catch(() => {});
+    }
   } catch (e) { $('dMeta').textContent = '加载失败: ' + e.message; }
 }
 function renderEps(flag, vod) {
   const box = $('dEps'); box.innerHTML = '';
-  const list = flag.episodes || [];
+  const list = (flag.episodes || []).slice();
+  if (typeof epOrderDesc !== 'undefined' && epOrderDesc) list.reverse();
   curEpsList = list;
   list.forEach(ep => {
     const d = document.createElement('div');
@@ -1464,7 +1696,139 @@ function renderEps(flag, vod) {
     box.appendChild(d);
   });
 }
-function closeDetail() { $('detailPage').classList.remove('show'); }
+// ---- 详情页小窗预览（对齐手机端：列表旁边有小播放器在放） ----
+let dPrevHls = null, dPrevCtx = null, dPrevMuted = true, lastPrev = null, pendingAdopt = null;
+async function previewEpisode(flagName, epUrl, epName, startMs, preResolved, adoptHls) {
+  const v = $('dPrev');
+  if (!v || !curVod || !epUrl) return;
+  stopPreview();
+  // 立即给出反馈：解析网盘地址通常要几秒，不能让小窗一直空白（用户会以为"没播放"）
+  try {
+    const b0 = $('dPrevBadge'); if (b0) { b0.style.display = 'block'; b0.textContent = '预览加载中…'; b0.onclick = null; }
+    const c0 = $('dPrevClose'); if (c0) c0.style.display = 'block';
+  } catch (e0i) {}
+  // 第一线路解析失败时自动尝试其它线路（最多 3 条），并在失败时把原因显示出来
+  const cands = [];
+  cands.push({ flag: flagName, url: epUrl, name: epName, resolved: preResolved || '' });
+  try {
+    (curVod.flags || []).forEach(f => {
+      if (cands.length >= 3 || f.flag === flagName) return;
+      const e0 = (f.episodes || [])[0];
+      if (e0) cands.push({ flag: f.flag, url: e0.url, name: e0.name || '' });
+    });
+  } catch (e) {}
+  let lastErr = '';
+  for (const c of cands) {
+    try {
+      let jurl = c.resolved;
+      if (!jurl) {
+        const j = await api('play', { site: curVod.siteKey, flag: c.flag, id: c.url });
+        if (!j || !j.url) { lastErr = (j && j.error) || '解析失败'; continue; }
+        jurl = j.url;
+      }
+      dPrevCtx = { flag: c.flag, epUrl: c.url, epName: c.name, resolved: jurl };
+      const dp = $('dPic'); if (dp) dp.style.display = 'none';   // 直接出视频，不显示海报
+      try { const ph0 = document.querySelector('#detailPage .ph'); if (ph0) ph0.style.display = 'none'; } catch (er) {}
+      // 小播放器：和手机端一致的固定框（470:300），视频在框内适应，不裁剪不变形
+      try {
+        v.style.objectFit = 'contain';
+        if (startMs > 3000) {
+          const st = startMs / 1000;
+          v.addEventListener('loadedmetadata', () => { try { v.currentTime = st; } catch (e2) {} }, { once: true });
+        }
+      } catch (er3) {}
+      if (adoptHls) {
+        // 接手大窗的 HLS 实例（同一路缓冲），接上即播
+        dPrevHls = adoptHls;
+        if (!dPrevHls._flytvMiniHooked) {
+          dPrevHls._flytvMiniHooked = true;
+          dPrevHls.on(Hls.Events.ERROR, (ev, data) => {
+            if (data && data.fatal) { const b = $('dPrevBadge'); if (b) { b.style.display = 'block'; b.textContent = '⚠️ 预览中断：' + (data.type || '流错误'); } }
+          });
+        }
+        try { dPrevHls.startLoad(); } catch (ev0) {}
+        dPrevHls.attachMedia(v);
+      } else if (/\.m3u8(\?|$|&)/i.test(jurl) && window.Hls && Hls.isSupported()) {
+        dPrevHls = new Hls({ maxBufferLength: 12 });
+        dPrevHls.loadSource(jurl);
+        dPrevHls.attachMedia(v);
+      } else {
+        v.src = jurl;
+      }
+      v.muted = dPrevMuted;
+      v.style.display = 'block';
+      const b = $('dPrevBadge');
+      if (b) {
+        b.style.display = 'block';
+        b.textContent = (dPrevMuted ? '🔇' : '🔊') + ' 预览：' + (c.name || '') + ' · 点击看完整版';
+        b.onclick = (ev) => {
+          ev.stopPropagation();
+          dPrevMuted = !dPrevMuted;
+          v.muted = dPrevMuted;
+          b.textContent = (dPrevMuted ? '🔇' : '🔊') + ' 预览：' + (c.name || '') + ' · 点击看完整版';
+        };
+      }
+      const cc = $('dPrevClose'); if (cc) cc.style.display = 'block';
+      v.onclick = () => { if (dPrevCtx) play(dPrevCtx.flag, dPrevCtx.epUrl, (curVod && curVod.siteKey) || ''); };
+      const p = v.play(); if (p && p.catch) p.catch(() => {
+        // 浏览器拦截"带声自动播放"（此前手动开过预览声音时会发生）→ 退回静音起播，保证第一时间有画面
+        try {
+          v.muted = true; dPrevMuted = true;
+          const bb = $('dPrevBadge');
+          if (bb) bb.textContent = '🔇 预览：' + (c.name || '') + ' · 点击看完整版';
+          v.play().catch(() => {});
+        } catch (e2) {}
+      });
+      document.querySelectorAll('#dEps .ep').forEach(x => x.classList.toggle('previewing', x.dataset.url === c.url));
+      if (c.flag !== flagName) {
+        document.querySelectorAll('#dFlags .tab').forEach(x => x.classList.toggle('active', x.textContent === c.flag));
+        const f = (curVod.flags || []).find(x => x.flag === c.flag);
+        if (f) renderEps(f, curVod);
+      }
+      return;
+    } catch (e) {
+      lastErr = String((e && e.message) || '解析失败');
+    }
+  }
+  // 全部失败：把原因显示在标签上（不再静默）
+  const b = $('dPrevBadge');
+  if (b) { b.style.display = 'block'; b.textContent = '⚠️ 预览不可用：' + lastErr; b.onclick = null; }
+  const cc = $('dPrevClose'); if (cc) cc.style.display = 'block';
+}
+function stopPreview(e, keepHls) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  try {
+    if (dPrevHls) {
+      if (keepHls) {
+        // 交接：不销毁，摘下媒体交给大窗继续用（同一路缓冲，切换不重来）
+        try { dPrevHls.stopLoad(); dPrevHls.detachMedia(); } catch (er0) {}
+        pendingAdopt = dPrevHls;
+      } else {
+        dPrevHls.destroy();
+      }
+      dPrevHls = null;
+    }
+  } catch (er) {}
+  const v = $('dPrev');
+  if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); v.style.display = 'none'; } catch (er) {} }
+  const dp = $('dPic'); if (dp && dp.getAttribute('src')) dp.style.display = 'block';
+  try { const box = document.querySelector('#detailPage .pic'); if (box) { box.style.aspectRatio = ''; box.style.width = ''; box.style.height = ''; } } catch (er) {}
+  const b = $('dPrevBadge'); if (b) b.style.display = 'none';
+  const c = $('dPrevClose'); if (c) c.style.display = 'none';
+  const sh = $('dPrevShield'); if (sh) sh.style.display = 'none';
+  dPrevCtx = null;
+  document.querySelectorAll('#dEps .ep').forEach(x => x.classList.remove('previewing'));
+}
+let epOrderDesc = false;
+function toggleEpOrder() {
+  epOrderDesc = !epOrderDesc;
+  const b = $('dOrderBtn'); if (b) b.textContent = epOrderDesc ? '倒序' : '正序';
+  if (!curVod) return;
+  const activeTab = document.querySelector('#dFlags .tab.active');
+  const f = (curVod.flags || []).find(x => activeTab && x.flag === activeTab.textContent) || (curVod.flags || [])[0];
+  if (f) renderEps(f, curVod);
+}
+function closeDetail() { stopPreview(); $('detailPage').classList.remove('show'); }
 
 async function toggleKeep() {
   const btn = $('dKeepBtn');
@@ -1482,29 +1846,10 @@ async function toggleKeep() {
 }
 
 // ---------- 历史 ----------
-// 点击历史 = 直接续播（用历史里的线路/集地址/进度）
+// 点击历史 = 进详情页（带选集/简介，小窗直接从上次进度起播），不再直接跳大屏播放器
 async function resumeHistory(h) {
-  if (!h.episodeUrl) { openDetail(h.vodId, h.name, h.siteKey); return; }
-  // 取最新进度：历史页卡片是打开面板时的旧数据，播放退出后不会自动刷新
-  try {
-    const j = await api('history');
-    const fresh = (j.list || []).find(x => x.key === h.key);
-    if (fresh) h = fresh;
-  } catch (e) {}
-  playCtx = {
-    site: h.siteKey, flag: h.flag || '', epUrl: h.episodeUrl, epIndex: -1,
-    epName: (String(h.episodeUrl || '').split('__')[0]) || h.remarks || '',
-    vodId: h.vodId, vodName: h.name || '', vodPic: h.pic || '',
-    vodRemarks: h.remarks || '', list: [], pos: h.position || 0, lastReport: 0, autoRetried: false,
-  };
-  const startMs = h.position > 5000 ? h.position : 0;
-  if (startMs > 0) toast('已从 ' + fmtTime(startMs) + ' 继续播放');
-  await startEpisode(startMs);
-  // 后台预载集列表：让「上一集/下一集/选集」立即可用（历史地址可能过期，用集名前缀自动匹配新地址）
-  ensurePlayList().then(() => {
-    updatePnButtons();
-    if ($('epsDrawer').classList.contains('show')) renderPlayList();
-  }).catch(() => {});
+  pendingResume = { site: h.siteKey, vodId: h.vodId, flag: h.flag || '', index: (typeof h.playIndex === 'number' ? h.playIndex : -1), remark: h.remarks || '', pos: (h.position > 15000 ? h.position : 0), episodeUrl: h.episodeUrl || '' };
+  openDetail(h.vodId, h.name, h.siteKey);
 }
 function fmtTime(ms) {
   const s = Math.floor(ms / 1000);
@@ -1531,20 +1876,23 @@ function startHistoryPoll() {
   clearInterval(histPollTimer);
   histPollTimer = setInterval(async () => {
     if (curPanel !== 'history') { clearInterval(histPollTimer); histPollTimer = null; return; }
-    try {
-      const st = await api('sync/status');
-      if (st && st.url) await api('sync/auto');
-    } catch (e) { }
+    // 引擎自身已是实时同步（长轮询），这里只对比本地数据有没有变化；
+    // 没变则完全不重绘（避免列表/图片闪烁），变了才更新
     loadHistory();
-  }, 15000);
+  }, 10000);
 }
+let histFp = '';
 async function loadHistory() {
-  $('historyStatus').textContent = '加载中…'; $('historyGrid').innerHTML = '';
+  if (!histFp) $('historyStatus').textContent = '加载中…';
   try {
     const j = await api('history');
     const list = j.list || [];
+    const fp = list.map(h => (h.key || '') + '|' + (h.name || '') + '|' + (h.pic || '') + '|' + (h.remarks || '') + '|' + (h.position || 0) + '/' + (h.duration || 0)).join('§');
     $('historyStatus').textContent = list.length ? '' : '暂无历史记录（播放后自动记录）';
+    if (fp === histFp) return;   // 数据没变：不重绘、不闪
+    histFp = fp;
     const g = $('historyGrid');
+    g.innerHTML = '';
     list.forEach(h => {
       const pct = (h.duration > 0 && h.position > 0) ? Math.min(100, Math.round(h.position * 100 / h.duration)) : 0;
       const c = document.createElement('div');
@@ -1746,38 +2094,57 @@ function pollPan(times) {
 async function loadSyncStatus() {
   try {
     const j = await api('sync/status');
-    if ($('syncUrl') && document.activeElement !== $('syncUrl')) $('syncUrl').value = j.url || '';
+    window._syncUrl = j.url || '';
+    window._syncLink = j.link || j.url || '';
+    if ($('syncLink')) $('syncLink').placeholder = j.url ? '已配置（粘贴新链接可更换）' : '粘贴 flytv://… 分享码（或同步地址）';
+    if ($('syncLinkView')) { $('syncLinkView').textContent = window._syncLink || '未配置'; $('syncLinkView').title = window._syncLink || ''; }
     if ($('syncAuto')) $('syncAuto').checked = j.auto !== false;
     if ($('syncInterval')) $('syncInterval').value = String(j.interval || 1);
-    if ($('syncPass')) $('syncPass').placeholder = j.hasPass ? '已设置口令（留空 = 不修改）' : '请输入同步口令（加密用）';
     const parts = [j.url ? '已配置' : '未配置'];
-    parts.push(j.hasPass ? '口令已设置 ✓' : '⚠️ 未设置口令');
+    parts.push(j.hasPass ? '密钥已保存 ✓' : '⚠️ 缺少密钥');
     if (j.lastUp) parts.push('上次上传 ' + new Date(+j.lastUp).toLocaleString());
     if (j.lastDown) parts.push('上次下载 ' + new Date(+j.lastDown).toLocaleString());
     $('syncStatus').textContent = parts.join(' · ');
   } catch (e) { const el = $('syncStatus'); if (el) el.textContent = '读取失败'; }
 }
 async function syncSaveCfg() {
-  const url = ($('syncUrl').value || '').trim();
-  const pass = ($('syncPass').value || '');
+  const input = ($('syncLink') && $('syncLink').value || '').trim();
+  const url = input || window._syncUrl || '';
   const auto = $('syncAuto') && $('syncAuto').checked ? '1' : '0';
   const interval = $('syncInterval') ? $('syncInterval').value : '1';
-  const j = await apiPost('sync/save', { url, pass, auto, interval });
+  const j = await apiPost('sync/save', { url, auto, interval });
   if (j.error) throw new Error(j.error);
-  $('syncPass').value = '';
+  if (input) $('syncLink').value = '';
   return j;
 }
 async function saveSyncCfg() {
-  if (!($('syncUrl').value || '').trim()) { toast('请填写同步地址'); return; }
-  const typedPass = ($('syncPass').value || '').length > 0;
+  const had = (($('syncLink') && $('syncLink').value) || '').trim().length > 0;
+  if (!had && !window._syncUrl) { toast('请先粘贴同步链接'); return; }
   try {
     await syncSaveCfg();
-    toast(typedPass ? '已保存（口令已更新——请点「⬆️ 上传到云端」让新口令生效）' : '同步配置已保存（口令框清空属于正常，已保存在引擎里）');
+    toast(had ? '同步链接已保存 ✓' : '自动同步设置已保存');
     loadSyncStatus();
   } catch (e) { toast('保存失败: ' + e.message); }
 }
+function copySyncLink() {
+  const t = window._syncLink || '';
+  if (!t) { toast('尚未配置同步链接'); return; }
+  const done = () => toast('已复制，粘贴到其它设备即可同步');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(done).catch(() => { fallbackCopy(t); done(); });
+  } else { fallbackCopy(t); done(); }
+}
+function fallbackCopy(t) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  } catch (e) { prompt('请手动复制：', t); }
+}
 async function syncUpload() {
-  if (!($('syncUrl').value || '').trim()) { toast('请先填写同步地址'); return; }
+  if (!((($('syncLink') && $('syncLink').value) || '').trim() || window._syncUrl)) { toast('请先粘贴同步链接'); return; }
   try {
     await syncSaveCfg();
     toast('正在加密上传…');
@@ -1788,7 +2155,7 @@ async function syncUpload() {
   } catch (e) { toast('上传失败: ' + e.message); }
 }
 async function syncDownload() {
-  if (!($('syncUrl').value || '').trim()) { toast('请先填写同步地址'); return; }
+  if (!((($('syncLink') && $('syncLink').value) || '').trim() || window._syncUrl)) { toast('请先粘贴同步链接'); return; }
   if (!confirm('从云端下载会覆盖本机的：点播配置、网盘登录、引擎设置（自动备份 .bak）；\n历史与收藏会合并。\n\n确定继续？')) return;
   try {
     await syncSaveCfg();
@@ -1825,6 +2192,7 @@ let devList = [];
 async function loadSettings() {
   renderThemeRow();
   loadSyncStatus();
+  loadAboutInfo();
   try {
     const j = await api('settings');
     // 配置下拉（自定义面板，替代原生 select）
@@ -1978,6 +2346,26 @@ function posKeyOf(site, vodId, epUrl) { return 'tpos:' + (site || '') + '@' + (v
 
 // 详情页点集数 入口
 async function play(flag, epUrl, siteKey) {
+  // 大小窗同一个窗口：小窗正在播 → 大窗继承【当前位置 + 已解析地址】，点击即变大、不重来
+  let t0 = 0, reuseUrl = '', adoptMini = false;
+  try {
+    const pv = $('dPrev');
+    if (dPrevCtx) {
+      lastPrev = { flag: dPrevCtx.flag, epUrl: dPrevCtx.epUrl, epName: dPrevCtx.epName, resolved: dPrevCtx.resolved || '' };
+      if (pv && pv.currentTime > 0) t0 = Math.floor(pv.currentTime * 1000);
+      if (dPrevCtx.epUrl === epUrl && dPrevCtx.resolved) reuseUrl = dPrevCtx.resolved;
+      // 小窗元素在播 → 搬进大窗（同一元素，无论 HLS 还是直链都缓冲保留、零重缓冲）
+      if (reuseUrl && pv && pv.id === 'dPrev' && pv.style.display !== 'none') adoptMini = true;
+    }
+  } catch (e) {}
+  if (adoptMini) {
+    pendingAdopt = null; // 元素本体搬家，不需要实例交接
+  } else {
+    stopPreview(null, !!reuseUrl); // 复用地址时：小窗 HLS 交接给大窗（不销毁）
+  }
+  const adoptHls = (!adoptMini && reuseUrl) ? pendingAdopt : null;
+  if (!adoptMini && !reuseUrl && pendingAdopt) { try { pendingAdopt.destroy(); } catch (e0) {} }
+  pendingAdopt = null;
   const site = siteKey || curSite || '';
   const vod = curVod || {};
   const list = (curEpsList || []).slice();
@@ -1985,12 +2373,17 @@ async function play(flag, epUrl, siteKey) {
   playCtx = {
     site, flag, epUrl, epIndex: idx, epName: idx >= 0 ? (list[idx].name || '') : '',
     vodId: vod.id || '', vodName: vod.name || '', vodPic: vod.pic || '', vodRemarks: vod.remarks || '',
-    list, pos: 0, lastReport: 0, autoRetried: false,
+    list, pos: 0, lastReport: 0, autoRetried: false, resolved: reuseUrl, adoptHls: adoptHls, adoptMini: adoptMini,
   };
   updateEpActive(epUrl);
-  // 上次进度续播（同一集）
+  // 上次进度续播（同一集）；历史点进来的进度优先
   const saved = parseInt(localStorage.getItem(posKeyOf(site, playCtx.vodId, epUrl)) || '0');
-  const startMs = saved > 15000 ? saved : 0;
+  let startMs = saved > 15000 ? saved : 0;
+  let fromResume = false;
+  if (_resumePos > 0) { startMs = _resumePos; _resumePos = 0; fromResume = true; }
+  // 小窗接续：仅当小窗已经播得比续播目标更靠后（>15秒）才用它，避免把"续播点"顶掉
+  if (t0 > 5000 && t0 > startMs + 15000) startMs = t0;
+  try { localStorage.setItem(posKeyOf(site, playCtx.vodId, epUrl), String(startMs)); } catch (e) {}
   if (startMs) toast('已从 ' + fmtTime(startMs) + ' 继续播放');
   await startEpisode(startMs);
 }
@@ -2006,9 +2399,17 @@ async function startEpisode(startMs) {
   $('playerTitle').textContent = title || '解析中…';
   setTip('解析中…');
   updatePnButtons();
+  // 小窗元素直接搬家 → 同一元素零重缓冲
+  if (playCtx.adoptMini) { startPlayer(playCtx.resolved, title, startMs || 0, null, true); return; }
+  // 从小窗继承来的已解析地址 → 直接用，秒开（同一个窗口的感觉）
+  if (playCtx.resolved) { startPlayer(playCtx.resolved, title, startMs || 0, playCtx.adoptHls); return; }
+  // 关键修复：换集/重试必须先停下旧画面。否则解析期间（尤其解析失败时）上一集还在播，
+  // 用户看到的就是"列表/标题已是新集、画面还是本集"的错乱。
+  try { const vOld = $('video'); if (vOld && !vOld.paused) vOld.pause(); } catch (ePause) {}
   try {
     const j = await api('play', { site: playCtx.site, flag: playCtx.flag, id: playCtx.epUrl });
     if (playCtx !== ctx) return; // 期间已返回或换了集 → 丢弃这次结果
+    if (j && j.url) playCtx.resolved = j.url; // 记住解析结果，切回小窗时可秒用
     // 播放前预检：网盘中继地址先探 1KB —— 登录过期/文件失效直接提示，不盲目起播
     if (j.url && /\/jarstream|\/proxy\?do=pan/.test(j.url)) {
       try {
@@ -2043,7 +2444,10 @@ async function startEpisode(startMs) {
             playCtx.epIndex = idx;
           }
           updatePnButtons();
-          toast('播放令牌已过期，已刷新资源重试…');
+          toast('播放地址已过期，已刷新线路地址重试。');
+          playCtx.resolved = ''; // 旧地址已失效：清掉，重新解析（否则会拿失败地址死循环）
+          playCtx.adoptHls = null;
+          playCtx.adoptMini = false;
           await startEpisode(startMs);
           return;
         }
@@ -2211,15 +2615,17 @@ async function loadDanmaku() {
   dmList = []; dmIdx = 0;
   if (!dmEnabled() || !playCtx || !playCtx.vodName) return;
   const name = playCtx.vodName;
-  if (dmBuf[name]) { dmList = dmBuf[name]; dmIdx = 0; return; }
+  const ep = playCtx.epName || '';
+  const ck = name + '|' + ep;
+  if (dmBuf[ck]) { dmList = dmBuf[ck]; dmIdx = 0; return; }
   try {
-    const j = await api('danmaku', { name });
+    const j = await api('danmaku', { name, ep });
     if (j && j.danmuku && j.danmuku.length) {
       dmList = j.danmuku
         .map(x => [(+x[0]) || 0, x[1], x[2], x[3], x[4]])
         .filter(x => x[4] && String(x[4]).trim().length > 0 && String(x[4]).length <= 80)
         .sort((a, b) => a[0] - b[0]);
-      dmBuf[name] = dmList;
+      dmBuf[ck] = dmList;
       dmIdx = 0;
       if (dmList.length) toast('弹幕已加载（' + dmList.length + ' 条）');
     }
@@ -2342,9 +2748,41 @@ function renderDmMenu() {
   });
 }
 
-function startPlayer(url, title, startMs) {
+function startPlayer(url, title, startMs, adoptHls, adoptMini) {
   if (!playCtx || !$('playerPage').classList.contains('show')) return; // 已返回 → 不再起播
-  destroyPlayer();
+  if (adoptMini) {
+    // 小窗 <video> 直接搬进大窗：同一元素、同一 MediaSource → 缓冲不丢、零重缓冲
+    try {
+      const mini = $('dPrev');
+      const box = document.querySelector('#playerPage .box');
+      const oldV = $('video');
+      const moveEl = mini ? (mini.closest('.plyr') || mini) : null;
+      if (mini && moveEl && box && oldV && mini !== oldV) {
+        try { oldV.pause(); oldV.removeAttribute('src'); oldV.load(); } catch (e0) {}
+        oldV.id = 'videoStash'; oldV.style.display = 'none';
+        box.insertBefore(moveEl, box.firstChild);
+        mini.id = 'video';
+        mini.style.cssText = '';
+        mini.onclick = null;
+        try { const sh0 = $('dPrevShield'); if (sh0) sh0.style.display = 'none'; } catch (e0b) {}
+        // Plyr 必须绑定在"正在显示"的元素上：小窗元素搬进来后，旧实例还绑在被换下的元素上，
+        // 会出现"单击视频不暂停、控制条失灵"的问题 → 旧实例若没包住该元素就销毁，下面会重建
+        try {
+          const cont = plyr && plyr.elements ? plyr.elements.container : null;
+          if (plyr && !(cont && cont.contains(mini))) { try { plyr.destroy(); } catch (e0d) {} plyr = null; }
+        } catch (e0e) { try { plyr.destroy(); } catch (e0f) {} plyr = null; }
+        try { mini.muted = false; } catch (e0m) {} // 进大屏默认开声（小窗的静音偏好仍记在 dPrevMuted）
+        if (dPrevHls) { hls = dPrevHls; dPrevHls = null; } // 交接：同一实例、同一缓冲（直链则无需实例）
+        if (hls && !hls._flytvHooked) {
+          hls._flytvHooked = true;
+          hls.on(Hls.Events.ERROR, (ev, data) => { if (data && data.fatal) scheduleRetry('流错误 ' + data.type); });
+        }
+        bigAdopted = true;
+      }
+    } catch (e) {}
+  } else {
+    destroyPlayer();
+  }
   if (!playCtx) playCtx = { pos: 0 };
   playCtx.pos = startMs || 0;
   playCtx.lastReport = 0;
@@ -2354,16 +2792,39 @@ function startPlayer(url, title, startMs) {
   // HLS 识别：中继 URL 里的 m3u8 后缀被 URL 编码（.m3u8%3F...），需先解码再判断
   let isHls = false;
   try { isHls = /\.m3u8(\?|$|&)/i.test(decodeURIComponent(url)); } catch (e) { isHls = /\.m3u8(\?|$)/i.test(url); }
-  if (isHls && window.Hls && Hls.isSupported()) {
-    hls = new Hls({ maxBufferLength: 60, backBufferLength: 30 });
-    hls.on(Hls.Events.ERROR, (ev, data) => {
-      if (data && data.fatal) scheduleRetry('流错误 ' + data.type);
-    });
-    hls.on(Hls.Events.FRAG_LOADED, (ev, data) => {
-      if (!/9790\/jarstream/i.test(url)) pushHlsSpeed(data && data.stats);
-    });
-    hls.loadSource(url);
-    hls.attachMedia(video);
+  if (adoptMini) {
+    // 元素已在播：不重新挂源、不动进度（缓冲原样保留）
+    $('playerTip').style.display = 'none';
+    // 需要跳到（更靠后的）续播点时，直接 seek —— 此时元素在播，交给 doSeek 会被"已在播放"守卫跳过
+    try {
+      if (startMs > 5000 && Math.abs(video.currentTime - startMs / 1000) > 5) video.currentTime = startMs / 1000;
+    } catch (e9) {}
+  } else if (isHls && window.Hls && Hls.isSupported()) {
+    if (adoptHls) {
+      // 接手小窗的 HLS 实例：清单/缓冲已就绪，接上即播
+      hls = adoptHls;
+      if (!hls._flytvHooked) {
+        hls._flytvHooked = true;
+        hls.on(Hls.Events.ERROR, (ev, data) => {
+          if (data && data.fatal) scheduleRetry('流错误 ' + data.type);
+        });
+        hls.on(Hls.Events.FRAG_LOADED, (ev, data) => {
+          if (!/9790\/jarstream/i.test(url)) pushHlsSpeed(data && data.stats);
+        });
+      }
+      try { hls.startLoad(); } catch (e0) {}
+      hls.attachMedia(video);
+    } else {
+      hls = new Hls({ maxBufferLength: 60, backBufferLength: 30 });
+      hls.on(Hls.Events.ERROR, (ev, data) => {
+        if (data && data.fatal) scheduleRetry('流错误 ' + data.type);
+      });
+      hls.on(Hls.Events.FRAG_LOADED, (ev, data) => {
+        if (!/9790\/jarstream/i.test(url)) pushHlsSpeed(data && data.stats);
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    }
   } else {
     video.src = url;
   }
@@ -2417,11 +2878,14 @@ function startPlayer(url, title, startMs) {
     setTimeout(doSeek, 1200);
     setTimeout(doSeek, 4000);
   }
-  plyr = new Plyr(video, {
+  if (!plyr) {
+    plyr = new Plyr(video, {
     controls: ['play-large','play','progress','current-time','duration','pip','fullscreen'],
     seekTime: 10,
     tooltips: { controls: true, seek: true },
     hideControls: false,     // 控制条常驻显示（不随鼠标消失）
+    clickToPlay: false,      // 单击播放/暂停改为自己绑定（见 bindBoxClickToggle）：
+                             // Plyr 自带绑定挂在容器/元素上，视频元素"搬家"后会失效（单击没反应）
     resetOnEnd: false,
     i18n: {
       restart: '重播', rewind: '快退', play: '播放', pause: '暂停', fastForward: '快进',
@@ -2431,10 +2895,13 @@ function startPlayer(url, title, startMs) {
       speed: '速度', normal: '正常', quality: '画质', loop: '循环', start: '开始', end: '结束',
       all: '全部', reset: '重置', disabled: '已禁用', enabled: '已开启', advertisement: '广告',
     },
-  });
-  plyr.on('ready', injectPlyrControls);
-  try { plyr.ready.then(() => injectPlyrControls()); } catch (e) {}
-  plyr.on('ratechange', renderSpeedLabel);
+    });
+    plyr.on('ready', injectPlyrControls);
+    try { plyr.ready.then(() => injectPlyrControls()); } catch (e) {}
+    plyr.on('ratechange', renderSpeedLabel);
+  } else {
+    try { plyr.controls = true; } catch (e) {}
+  }
   video.play().catch(() => {});
   // 弹幕：清层、启动循环、拉取、seek 定位
   dmList = []; dmIdx = 0;
@@ -2458,10 +2925,11 @@ function reportHistory(force) {
   try { localStorage.setItem(posKeyOf(playCtx.site, playCtx.vodId, playCtx.epUrl), String(pos)); } catch (e) {}
   if (!force && Date.now() - (playCtx.lastReport || 0) < 9000) return;
   playCtx.lastReport = Date.now();
+  const epIdx = Array.isArray(curEpsList) ? curEpsList.findIndex(e => e.url === playCtx.epUrl) : -1;
   apiPost('history/save', {
     siteKey: playCtx.site, vodId: playCtx.vodId, name: playCtx.vodName, pic: playCtx.vodPic,
     flag: playCtx.flag, remarks: playCtx.vodRemarks, episodeUrl: playCtx.epUrl,
-    position: pos, duration: dur,
+    position: pos, duration: dur, index: epIdx,
   }).catch(() => {});
   saveNowPlaying();
   if (force) scheduleCloudPush(3000); else scheduleCloudPush(20000);
@@ -2485,10 +2953,11 @@ function beaconHistory() {
     const v = $('video');
     const pos = (v && v.currentTime > 0) ? Math.floor(v.currentTime * 1000) : (playCtx.pos || 0);
     const dur = (v && isFinite(v.duration)) ? Math.floor(v.duration * 1000) : -1;
+    const epIdx = Array.isArray(curEpsList) ? curEpsList.findIndex(e => e.url === playCtx.epUrl) : -1;
     const qs = new URLSearchParams({
       siteKey: playCtx.site, vodId: playCtx.vodId, name: playCtx.vodName || '', pic: playCtx.vodPic || '',
       flag: playCtx.flag || '', remarks: playCtx.vodRemarks || '', episodeUrl: playCtx.epUrl || '',
-      position: String(pos), duration: String(dur),
+      position: String(pos), duration: String(dur), index: String(epIdx),
     }).toString();
     fetch('/api/history/save?' + qs, { keepalive: true }).catch(() => {});
     try { localStorage.setItem(posKeyOf(playCtx.site, playCtx.vodId, playCtx.epUrl), String(pos)); } catch (e) {}
@@ -2526,13 +2995,54 @@ async function restoreNowPlaying() {
 }
 
 // ---- 选集 / 上下集 ----
+/** 按片名搜索其它站点（当前站详情不可用时自动换源）：返回 {id,name,site,siteName} 或 null */
+async function findAltSource(name, excludeSite) {
+  try {
+    const norm = (s) => String(s || '').replace(/[\s·・（）()【】\[\]《》!！:：\-—_]/g, '');
+    const nm = norm(name);
+    if (!nm) return null;
+    const { id } = await api('searchstream', { wd: name });
+    let groups = [];
+    for (let i = 0; i < 5; i++) {
+      const j = await api('searchpoll', { id, from: 0 });
+      groups = j.groups || [];
+      if (groups.some(g => (g.list || []).length)) break;
+      if (j.done) break;
+      await new Promise(r => setTimeout(r, 800));
+    }
+    for (const g of groups) {
+      for (const it of (g.list || [])) {
+        if (!it || !it.id) continue;
+        if ((it.site || '') === excludeSite) continue;
+        const inn = norm(it.name);
+        if (inn && (inn === nm || inn.indexOf(nm) >= 0 || nm.indexOf(inn) >= 0)) return it;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
 async function ensurePlayList() {
   if (!playCtx) return false;
   if (playCtx.list && playCtx.list.length) return true;
   try {
-    const j = await api('detail', { site: playCtx.site, id: playCtx.vodId });
-    const flags = j.flags || [];
-    const f = flags.find(x => x.flag === playCtx.flag) || flags[0];
+    let j = await api('detail', { site: playCtx.site, id: playCtx.vodId });
+    let flags = (j && j.flags) || [];
+    let f = flags.find(x => x.flag === playCtx.flag) || flags[0];
+    if (!f || !(f.episodes || []).length) {
+      // 当前站点详情不可用（站挂了/改域名）→ 按片名搜索其它站点，自动换源
+      const alt = await findAltSource(playCtx.vodName, playCtx.site);
+      if (alt) {
+        const j2 = await api('detail', { site: alt.site, id: alt.id });
+        const f2 = ((j2 && j2.flags) || []).find(x => (x.episodes || []).length);
+        if (f2) {
+          toast('该来源不可用，已自动换到「' + (alt.siteName || alt.site) + '」');
+          playCtx.site = alt.site;
+          playCtx.vodId = alt.id;
+          playCtx.vodPic = (j2 && j2.pic) || playCtx.vodPic;
+          j = j2; flags = (j2.flags || []); f = f2;
+        }
+      }
+    }
     if (!f || !(f.episodes || []).length) return false;
     playCtx.flag = f.flag;
     playCtx.list = f.episodes || [];
@@ -2592,6 +3102,10 @@ async function switchEp(i) {
   playCtx.epUrl = playCtx.list[i].url;
   playCtx.epName = playCtx.list[i].name || '';
   playCtx.pos = 0; playCtx.autoRetried = false;
+  // 关键修复：换集必须清掉上一集的已解析地址/交接信息，否则画面还是上一集
+  playCtx.resolved = '';
+  playCtx.adoptHls = null;
+  playCtx.adoptMini = false;
   $('epsDrawer').classList.remove('show');
   renderPlayList();
   const saved = parseInt(localStorage.getItem(posKeyOf(playCtx.site, playCtx.vodId, playCtx.epUrl)) || '0');
@@ -2696,7 +3210,7 @@ function bindVolumeGestures() {
   window.addEventListener('mousemove', (e) => {
     if (!volDrag || !plyr) return;
     const dy = volDrag.y - e.clientY;
-    if (!volDrag.moved && Math.abs(dy) < 6) return;
+    if (!volDrag.moved && Math.abs(dy) < 12) return;
     volDrag.moved = true;
     volDragMovedAt = Date.now();
     plyr.muted = false;
@@ -2706,6 +3220,22 @@ function bindVolumeGestures() {
   window.addEventListener('mouseup', () => { if (volDrag && volDrag.moved) volDragMovedAt = Date.now(); volDrag = null; });
   page.addEventListener('click', (e) => {
     if (Date.now() - volDragMovedAt < 350) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+}
+// ---- 大屏双击播放/暂停：绑在固定的播放页容器上（元素搬家/重建都不受影响） ----
+// 单击不动作（避免鼠标/遥控点选时误触暂停）；用捕获阶段，抢在 Plyr 的双击全屏处理之前
+function bindBoxClickToggle() {
+  const box = document.querySelector('#playerPage .box');
+  if (!box || box._tvClickToggle) return;
+  box._tvClickToggle = true;
+  box.addEventListener('dblclick', (e) => {
+    if (!plyr) return;
+    const pp = document.getElementById('playerPage');
+    if (!pp || !pp.classList.contains('show')) return;
+    const t = e.target;
+    if (t && t.closest && (t.closest('.plyr__control') || t.closest('.plyr__controls') || t.closest('.speed-menu') || t.closest('.tip'))) return;
+    e.stopPropagation(); e.preventDefault();
+    plyr.togglePlay();
   }, true);
 }
 function playPrev() {
@@ -2722,7 +3252,7 @@ function updateEpActive(epUrl) {
   document.querySelectorAll('#dEps .ep').forEach(x => x.classList.toggle('active', x.dataset.url === epUrl));
 }
 
-function destroyPlayer() {
+function destroyPlayer(keepHls) {
   clearInterval(playTimer); playTimer = null;
   stopSpeedMonitor();
   stopDmLoop();
@@ -2730,7 +3260,13 @@ function destroyPlayer() {
   const resEl = $('vpRes'); if (resEl) resEl.style.display = 'none';
   const sm = $('speedMenu'); if (sm) sm.classList.remove('show');
   const vh = $('volHud'); if (vh) vh.classList.remove('show');
-  try { if (hls) { hls.destroy(); hls = null; } } catch (e) {}
+  try {
+    if (hls) {
+      if (keepHls) { try { hls.stopLoad(); hls.detachMedia(); } catch (e0) {} } // 交接给小窗继续用
+      else hls.destroy();
+      hls = null;
+    }
+  } catch (e) {}
   try { if (plyr) { plyr.destroy(); plyr = null; } } catch (e) {}
   const v = $('video');
   try { v.onplaying = null; v.onerror = null; v.onended = null; v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
@@ -2739,17 +3275,175 @@ function destroyPlayer() {
 function closePlayer() {
   // 取消待执行的自动重试，防止"返回后又被拉回播放页"
   if (playCtx && playCtx.retryTimer) { clearTimeout(playCtx.retryTimer); playCtx.retryTimer = null; }
+  let backMs = 0;
+  try { const bv = $('video'); if (bv && bv.currentTime > 0) backMs = Math.floor(bv.currentTime * 1000); } catch (e) {}
+  const fin = playCtx ? { flag: playCtx.flag, epUrl: playCtx.epUrl, epName: playCtx.epName, resolved: playCtx.resolved || '', vodId: playCtx.vodId || '', vodName: playCtx.vodName || '', site: playCtx.site || '' } : null;
   reportHistory(true); // 退出时保存进度
-  destroyPlayer();
+  const detailOpen = $('detailPage').classList.contains('show');
+  // 通用拆解（不碰正在播的元素本体）
+  clearInterval(playTimer); playTimer = null;
+  try { stopSpeedMonitor(); } catch (e) {}
+  try { stopDmLoop(); } catch (e) {}
+  const dmLayerEl = $('dmLayer'); if (dmLayerEl) dmLayerEl.innerHTML = '';
+  const resEl = $('vpRes'); if (resEl) resEl.style.display = 'none';
+  const sm = $('speedMenu'); if (sm) sm.classList.remove('show');
+  const vh = $('volHud'); if (vh) vh.classList.remove('show');
+  $('playerTip').style.display = 'none';
+  // 情况1：小窗元素搬去大窗的 → 原路搬回小窗继续播（同一元素、零重缓冲）
+  const bigV = $('video');
+  const wasPlaying = !!(bigV && !bigV.paused); // plyr.destroy() 会停播 → 先记状态，搬回后恢复
+  if (bigAdopted && detailOpen && fin && bigV && bigV.id === 'video') {
+    try {
+      const slot = document.querySelector('#detailPage .pic');
+      const stash = $('videoStash');
+      // 关键：不销毁 plyr（其 destroy 会停播）→ 隐藏控制条，连外壳一起搬回小窗
+      try { if (plyr) { try { plyr.controls = false; } catch (e1b) {} } } catch (e1) {}
+      const moveEl = bigV.closest('.plyr') || bigV;
+      if (slot && stash && moveEl.parentElement !== slot) {
+        bigV.onplaying = null; bigV.onerror = null; bigV.onended = null; bigV.onseeking = null;
+        bigV.id = 'dPrev';
+        bigV.style.cssText = '';
+        bigV.style.display = 'block';
+        bigV.style.objectFit = 'contain';
+        slot.insertBefore(moveEl, slot.firstChild);
+        const sh = $('dPrevShield'); if (sh) sh.style.display = 'block';
+        stash.id = 'video'; stash.style.display = '';
+        if (dPrevHls) { try { dPrevHls.destroy(); } catch (e5) {} dPrevHls = null; }
+        if (hls) { dPrevHls = hls; hls = null; }
+        bigAdopted = false;
+        dPrevCtx = { flag: fin.flag, epUrl: fin.epUrl, epName: fin.epName, resolved: fin.resolved || '' };
+        bigV.onclick = () => { if (dPrevCtx) play(dPrevCtx.flag, dPrevCtx.epUrl, (curVod && curVod.siteKey) || ''); };
+        // 状态回显：小窗标签显示 播放中/已暂停（也便于自检）
+        const badgeTxt = (st) => {
+          try {
+            const b = $('dPrevBadge');
+            if (!b) return;
+            const muted = bigV.muted ? '🔇' : '🔊';
+            b.textContent = (st === 'pause' ? '⏸ 已暂停 · ' : muted + ' 预览：') + (fin.epName || '') + ' · 点击看完整版';
+          } catch (e) {}
+        };
+        bigV.onplay = () => badgeTxt('play');
+        bigV.onpause = () => {
+          badgeTxt('pause');
+          // 小窗里没有暂停操作 → 意外暂停自动续播（持续 20 秒内看守）
+          try { if (Date.now() - collapseAt < 20000) setTimeout(() => { try { if (bigV.paused && $('dPrev') === bigV) { const p2 = bigV.play(); if (p2 && p2.catch) p2.catch(() => {}); } } catch (e11) {} }, 500); } catch (e12) {}
+        };
+        const collapseAt = Date.now();
+        bigV.muted = dPrevMuted;
+        if (wasPlaying) { try { const p0 = bigV.play(); if (p0 && p0.catch) p0.catch(() => {}); } catch (e6) {} }
+        // 保险丝：搬回后若短暂未在播 → 稍后再试
+        const resumeTgt = bigV;
+        const resumeForce = () => { try { if (resumeTgt.paused && $('dPrev') === resumeTgt) { const p1 = resumeTgt.play(); if (p1 && p1.catch) p1.catch(() => {}); } } catch (e7) {} };
+        setTimeout(resumeForce, 300);
+        setTimeout(resumeForce, 1500);
+        const b = $('dPrevBadge');
+        if (b) {
+          b.style.display = 'block';
+          b.onclick = (ev) => {
+            ev.stopPropagation();
+            dPrevMuted = !dPrevMuted;
+            bigV.muted = dPrevMuted;
+            badgeTxt(bigV.paused ? 'pause' : 'play');
+          };
+          badgeTxt(bigV.paused ? 'pause' : 'play');
+        }
+        const cc = $('dPrevClose'); if (cc) cc.style.display = 'block';
+        document.querySelectorAll('#dEps .ep').forEach(x => x.classList.toggle('previewing', x.dataset.url === fin.epUrl));
+        playCtx = null;
+        $('playerPage').classList.remove('show');
+        $('epsDrawer').classList.remove('show');
+        try { sessionStorage.removeItem(NP_KEY); localStorage.removeItem(NP_KEY); } catch (e2) {}
+        if (curPanel === 'history') setTimeout(loadHistory, 350);
+        return;
+      } else if (stash) {
+        // 无法搬回（详情页结构异常）：放弃该元素，恢复大窗元素
+        try { bigV.remove(); } catch (e3) { try { bigV.parentElement.removeChild(bigV); } catch (e4) {} }
+        stash.id = 'video'; stash.style.display = '';
+      }
+    } catch (e) {}
+  }
+  // 情况2：常规销毁；能交接就把 hls 交给小窗重挂
+  bigAdopted = false;
+  let adopt = null;
+  try { if (hls && fin) adopt = hls; } catch (e) {}
+  destroyPlayer(!!adopt);
   playCtx = null;
   $('playerPage').classList.remove('show');
   $('epsDrawer').classList.remove('show');
   try { sessionStorage.removeItem(NP_KEY); localStorage.removeItem(NP_KEY); } catch (e) {}
   if (curPanel === 'history') setTimeout(loadHistory, 350); // 等进度上报落库后刷新卡片
+  // 直接进播放器（历史/续播）的场景：退出后回到详情页，方便看选集/简介
+  try {
+    if (fin && fin.vodId && !$('detailPage').classList.contains('show')) {
+      openDetail(fin.vodId, fin.vodName, fin.site);
+    }
+  } catch (e) {}
+  // 大切小：回到详情页时小窗接续【当前进度 + 原解析地址】，返回即变小、不重来
+  try {
+    if ($('detailPage').classList.contains('show')) {
+      const lp = fin || lastPrev;
+      let cand = null;
+      if (lp && lp.epUrl) cand = lp;
+      else if (curVod && (curVod.flags || []).length) {
+        const f0 = curVod.flags[0], e0 = (f0.episodes || [])[0];
+        if (e0) cand = { flag: f0.flag, epUrl: e0.url, epName: e0.name || '', resolved: '' };
+      }
+      if (cand) setTimeout(() => {
+        try { if ($('detailPage').classList.contains('show') && !dPrevCtx) previewEpisode(cand.flag, cand.epUrl, cand.epName, backMs, cand.resolved || '', adopt); else if (adopt) { try { adopt.destroy(); } catch (e2) {} } } catch (e) {}
+      }, 400);
+    }
+  } catch (e) {}
 }
 
+// ---- 网盘 Key 推送/拉取（云端加密文件 <token>-pan） ----
+async function panKeyPush() {
+  toast('正在推送网盘Key…');
+  try {
+    const r = await apiPost('pan/key/push', {});
+    if (r && r.ok) toast('已推送 ' + (r.pushed || 0) + ' 项网盘Key/设置到云端 ✓');
+    else toast((r && r.error) || '推送失败');
+  } catch (e) { toast('推送失败: ' + (e && e.message ? e.message : e)); }
+}
+async function panKeyPull() {
+  if (!confirm('从云端拉取网盘Key到本机？\n\n拉取后会自动重载网盘，立即生效。')) return;
+  toast('正在拉取网盘Key…');
+  try {
+    const r = await apiPost('pan/key/pull', {});
+    if (r && r.ok) toast('已应用 ' + (r.applied || 0) + ' 项网盘Key，已自动重载' + (r.reloaded ? '完成 ✓' : '（稍等几秒）'));
+    else toast((r && r.error) || '拉取失败');
+  } catch (e) { toast('拉取失败: ' + (e && e.message ? e.message : e)); }
+}
+// ---- 页面版本自检：引擎已更新但本页还是旧代码时，提示刷新（不自动刷，避免打断播放） ----
+const PAGE_VER = '1.0.38';
+let verTipShown = false;
+async function checkPageVer() {
+  try {
+    const r = await fetch('/api/update/status', { cache: 'no-store' });
+    const j = await r.json();
+    if (j && j.version && j.version !== PAGE_VER && !verTipShown) {
+      verTipShown = true;
+      const b = document.createElement('button');
+      b.textContent = '🔄 服务已更新到 v' + j.version + '，点我刷新页面';
+      b.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:99999;padding:10px 16px;border-radius:10px;border:0;background:#6a5cff;color:#fff;font-size:13px;cursor:pointer;box-shadow:0 8px 24px rgba(20,30,60,.28)';
+      b.onclick = () => location.reload();
+      document.body.appendChild(b);
+    }
+  } catch (e) {}
+}
+setTimeout(checkPageVer, 8000);
+setInterval(checkPageVer, 180000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkPageVer(); });
+// 历史面板开着时每 10 秒自动刷新一次（数据没变不重绘不闪；后台同步拉到的新记录会自动出现）
+setInterval(() => { try { if (curPanel === 'history') loadHistory(); } catch (e) {} }, 10000);
 initSites();
 bindVolumeGestures();
+bindBoxClickToggle();
+// 鼠标点过的按钮立刻失焦：否则之后按遥控 OK / 回车会把这个按钮再点一遍（浏览器焦点残留）
+document.addEventListener('click', (e) => {
+  if (!e.detail) return; // 键盘/遥控触发的点击（detail=0）：保留焦点，键盘导航照常
+  const el = e.target && e.target.closest ? e.target.closest('button, .nav-item, .tab, .ep, .sp-opt') : null;
+  if (el && el.blur) setTimeout(() => { try { el.blur(); } catch (e2) {} }, 0);
+}, true);
 // 点击空白 / Esc 关闭播放器小菜单（倍速、弹幕设置）
 document.addEventListener('click', (e) => {
   if (e.target && e.target.closest && (e.target.closest('.speed-menu') || e.target.closest('#btnSpeed') || e.target.closest('#btnDm'))) return;
@@ -2852,6 +3546,8 @@ document.addEventListener('keydown', (e) => {
 });
 // 同步恢复播放现场：仅当前标签页刷新时生效——首帧直接进入播放页（不闪首页），新开页面不会跳
 restoreNowPlaying().catch(() => {});
+// 启动后静默检查更新（每次浏览器会话提示一次）
+setTimeout(() => { if (!sessionStorage.getItem('updChecked')) { sessionStorage.setItem('updChecked', '1'); autoCheckUpdate(); } }, 12000);
 </script>
 </body>
 </html>

@@ -1,147 +1,62 @@
 # FlyTV
 
-> **TVBox 的 Windows 版** · 免安装 · 纯 Java 本地影视聚合引擎 + Web 播放器
+> **TVBox 的桌面版 + 安卓版**：把 TVBox / CatVod 生态的 jar 爬虫与站点配置搬到 Windows，并用自建同步服务把两端打通——观看进度、网盘Key、收藏，实时互同步。
 
 [![Release](https://img.shields.io/github/v/release/LanLanff/FlyTV?label=release)](https://github.com/LanLanff/FlyTV/releases/latest)
 [![License](https://img.shields.io/github/license/LanLanff/FlyTV)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/LanLanff/FlyTV)](https://github.com/LanLanff/FlyTV/stargazers)
 
-![截图](docs/screenshot.jpg)
+![首页](docs/home.jpg)
 
-FlyTV 把手机上流行的 TVBox / CatVod 生态（jar 爬虫 + 站点配置）搬到 Windows：
-本地跑一个 **Java 引擎** + 一个 **jar 爬虫宿主**，浏览器打开 `http://127.0.0.1:9978/web` 即可看片。
-全部功能开源、数据本地存储、不依赖任何云端账号。
+## 这是什么
 
-## 特性
+FlyTV 把手机上 TVBox / CatVod 生态的 **jar 爬虫 + 站点配置** 原样搬到 Windows：
 
-- **点播 / 分类 / 搜索**：任意 TVBox 配置源（XML/JSON），全站流式聚合搜索（边搜边出）
-- **搜索体验**：爱奇艺联想（支持拼音 `doupo`、`lldq`）+ 360kan 热榜"搜索发现"
-- **网盘播放**：夸克 / UC / 百度登录后可直接播放分享资源
-  - 扫码登录：夸克 App 扫一扫即登录（引擎自动保存 Cookie，无需手动复制）
-  - 手动兜底：任意网盘可「粘贴 Cookie」导入
-  - 智能转存：同一会话取新 token、按集名自动匹配（分享被上传者换文件也能恢复）
-  - 专用 TVBox 目录 + 复用，避免重复转存
-- **进度记忆**：播放历史、断点续播、与安卓 TVBox / F 影视 局域网同步（`/action?do=sync`）
-- **弹幕**：自动匹配弹幕库，可调字号与显示区域（1/4、半屏、3/4、全屏），按区域自动控制密度
-- **强大小工具**：拼音首字母搜索、图片缓存、访问口令、局域网访问、局域网下载发布包
-- **零依赖运行**：自带 jlink 精简 JRE 的发布包约 60MB（对比原桌面版 200MB+）
+- **Windows 版**：纯 Java 引擎（自带精简 JRE，约 60MB，**无需安装 Java**）+ jar 爬虫宿主 + Web 界面（`http://127.0.0.1:9978/web`），鼠标、键盘、电视遥控都能用；
+- **安卓版**：基于 TVBoxOSC 定制，内置同一套网盘与同步能力；
+- **同步服务**：可选的单文件 Go 服务。两端扫同一个 `flytv://` 加密链接即可配对；数据用 AES-256-GCM 端到端加密后存进你自己的服务，不经过第三方。
+
+## 功能
+
+- **点播 / 直播 / 搜索**：兼容 TVBox 的 XML/JSON 源；全站式聚合搜索；支持拼音（`doupo`、`lldq`）
+- **网盘播放**：夸克 / UC / 百度等登录（扫码或粘贴 Cookie）；夸克转存中继，高码率 / 4K 直出
+- **跨端同步**：观看历史与进度、网盘 Key、收藏；WebSocket 实时推送（亚秒级），断线自动重连、长轮询兜底
+- **播放器**：Plyr + hls.js；双击暂停、选集 / 上一集下一集、弹幕、倍速、画中画；断流自动重试；播放前预检登录状态
+- **小窗预览**：详情页小播放器直接从上次进度续播；点一下无缝放大（同一媒体元素，不重新缓冲）
+- **历史续播**：任意一端看过，换设备打开即从上次位置继续
+
+## 快速开始
+
+**Windows**：下载 `FlyTV-20260916.zip` → 解压 → 运行（首次启动拉起本地引擎）→ 浏览器打开 `http://127.0.0.1:9978/web`
+
+**安卓**：安装 APK（`TVBox_debug-java64_builtin.apk`）
+
+**同步（可选）**：服务器上运行 `flytv-sync` → 在两端填入同一个 `flytv://` 链接 → 自动开始同步
 
 ## 架构
 
 ```
-浏览器 (Web 前端, 纯静态)
-   │  HTTP /api/*  (9978)
-   ▼
-┌───────────────────────────┐
-│  FlyTV Java 引擎           │   配置解析 / 站点读写 / 搜索聚合 / 播放编排
-│  dev.flytv.engine.*        │   网盘转存(夸克) / 图片代理 / 弹幕 / 口令
-└────────────┬──────────────┘
-             │  HTTP  (9790)  /load /call /jarpost /jarstream
-             ▼
-┌───────────────────────────┐
-│  jar-host 爬虫宿主          │   dex→class 转换 / Android 兼容桩
-│  host.Host + android.*      │   ClassLoader / 标准 TVBox JSON 协议
-└────────────┬──────────────┘
-             ▼
-       TVBox jar 爬虫（运行时由配置源下发）
+FlyTV Windows   jre(精简) + flytv-engine.jar(Java 引擎) + web/(前端) + jar 爬虫宿主(9790)
+FlyTV Android   TVBoxOSC 定制（Java 爬虫 + ExoPlayer + 弹幕）
+flytv-sync      Go 单文件服务（26100）：加密云文件 + WebSocket 变更通知
 ```
 
-## 目录结构
+## 引用的开源项目（致谢）
 
-```
-engine/     Java 引擎源码（HttpServer + 业务逻辑）
-host/       jar 爬虫宿主源码（含 Android 兼容桩类，可跑手机版 jar 爬虫）
-web/        Web 前端（单文件 index.html + Plyr/HLS）
-libs/       引擎与宿主共用的第三方依赖 jar（gson/okhttp/jsoup/bcprov 等）
-docs/       截图等
-```
+本项目站在这些优秀开源项目的肩膀上，特此致谢：
 
-## 构建
-
-需要 **JDK 11+**（`javac` 在 PATH 中，或安装在常见位置）。
-
-```powershell
-# 构建引擎（输出 engine/flytv-engine.jar）
-powershell -ExecutionPolicy Bypass -File engine\build.ps1
-
-# 构建 jar 宿主（输出 host/jar-host.jar）
-powershell -ExecutionPolicy Bypass -File host\build.ps1
-```
-
-## 运行
-
-把构建产物按下面布局放好（发布包即此结构），双击 `启动.cmd` 或执行：
-
-```
-FlyTV/
-├─ jre/                运行用 JRE（可用 jlink 生成，见下）
-├─ libs/               第三方依赖
-├─ flytv-engine.jar
-├─ jar-host.jar
-├─ web/                Web 前端
-└─ 启动.cmd
-```
-
-```bat
-jre\bin\javaw.exe -cp "libs\*;flytv-engine.jar" -Dflytv.port=9978 dev.flytv.engine.Main
-```
-
-浏览器打开 `http://127.0.0.1:9978/web`。
-
-<details>
-<summary>用 jlink 生成精简 JRE（可选）</summary>
-
-```powershell
-jlink --add-modules java.base,java.desktop,java.logging,java.net.http,java.scripting,jdk.crypto.ec,jdk.unsupported,jdk.zipfs `
-      --strip-debug --no-header-files --no-man-pages --compress 2 --output jre
-```
-
-</details>
-
-## 数据目录
-
-历史 / 收藏 / 设置 / 缓存统一放在（与旧版 TVBox 桌面版兼容）：
-
-```
-%LOCALAPPDATA%\TVBox for Windows\
-├─ prefs.json      设置
-├─ history.json    播放历史
-├─ keep.json       收藏
-├─ jarcache\       爬虫缓存与网盘 Cookie
-└─ cache\webimg    海报缓存
-```
-
-## 端口
-
-| 端口 | 用途 |
-|------|------|
-| 9978 | Web 页面与 API |
-| 9790 | 爬虫宿主 / 网盘中继（内部使用） |
-
-## 常见问题
-
-- **页面打不开**：确认引擎进程在运行、端口未被占用（改 `-Dflytv.port` 即可）。
-- **站点加载慢**：首次需要抓取站点数据，之后有缓存。
-- **网盘播放失败**：分享可能已被上传者更换或账号转存受限；本版会自动按集名重新匹配，仍失败请稍后重试。
-- **不显示片源**：本项目不内置任何资源，请在设置中添加你自己的 TVBox 配置源。
+- **[TVBoxOSC](https://github.com/q215613905/TVBoxOSC)**（q215613905）—— 安卓端基础
+- **[FongMi/TV](https://github.com/FongMi/TV)**（FongMi）—— 取值与实现思路参考
+- **[Plyr](https://github.com/sampotts/plyr)** 与 **[hls.js](https://github.com/video-dev/hls.js)** —— 网页播放器与 HLS 播放
+- **[OkHttp](https://github.com/square/okhttp)**、**[Gson](https://github.com/google/gson)**、**[jsoup](https://jsoup.org/)**、**[pinyin4j](https://github.com/belerweb/pinyin4j)**、**[BouncyCastle](https://www.bouncycastle.org/)** —— 桌面引擎依赖
+- **[gorilla/websocket](https://github.com/gorilla/websocket)** —— 同步服务实时推送
+- **[DanmakuFlameMaster](https://github.com/bilibili/DanmakuFlameMaster)**、**[ExoPlayer](https://github.com/androidx/media)** —— 安卓弹幕与播放
+- 以及 TVBox 生态中的各类爬虫 jar（版权归各自作者）；各网盘接口为社区逆向成果
 
 ## 免责声明
 
-- 本项目**仅供学习与技术交流**，不提供、不存储、不分发任何影视资源。
-- 所有片源来自用户自行配置的第三方接口，与本项目无关；请于下载后 24 小时内删除。
-- 请遵守当地法律法规与各平台服务条款，任何滥用后果由使用者自行承担。
-
-## 致谢
-
-- [TVBox](https://github.com/o0HalfLife0o/TVBoxOSC) / [CatVod](https://github.com/CatVodTVOfficial) 生态：站点协议与 jar 爬虫
-- [FongMi/TV](https://github.com/FongMi/TV)：搜索联想与热词等交互参考
-- [Plyr](https://github.com/sampotts/plyr)、[hls.js](https://github.com/video-dev/hls.js)：播放器
-- [qrcodejs](https://github.com/davidshimjs/qrcodejs)：扫码登录二维码渲染（MIT）
-
-## 关键词
-
-TVBox Windows 版 · TVBox 电脑版 · TVBox 桌面版 · TVBox 电脑端 · 影视聚合 · 网盘播放 · 夸克网盘 · CatVod · FongMi · jar 爬虫 · 弹幕 · 免安装绿色版 · 纯 Java
+本项目仅用于技术学习与个人自用，**不提供、不存储任何影视内容**；所有资源均来自第三方接口，请勿用于商业用途，并遵守当地法律法规。因使用本项目产生的一切后果由使用者自行承担。
 
 ## License
 
-[MIT](LICENSE)
+见 [LICENSE](LICENSE)。第三方组件遵循各自的开源协议。
