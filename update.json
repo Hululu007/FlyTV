@@ -1,8 +1,8 @@
 {
   "win": {
     "version": "1.0.39",
-    "size": 61450645,
-    "md5": "b68fa698f43e236748c6b80f0134667c",
+    "size": 61451071,
+    "md5": "73679f2df44ed9abad13275d463a4dfb",
     "notes": "大屏双击播放/暂停；按钮点后失焦（遥控OK不重复触发）；历史小窗立即提示并自动续播；网盘Key/换集修复；更新源改为 GitHub（不再依赖任何私人服务器）。",
     "url": "https://github.com/LanLanff/FlyTV/releases/download/v1.0.39/FlyTV-1.0.39-win.zip"
   },

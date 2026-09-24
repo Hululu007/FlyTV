@@ -3413,21 +3413,43 @@ async function panKeyPull() {
     else toast((r && r.error) || '拉取失败');
   } catch (e) { toast('拉取失败: ' + (e && e.message ? e.message : e)); }
 }
-// ---- 页面版本自检：引擎已更新但本页还是旧代码时，提示刷新（不自动刷，避免打断播放） ----
-const PAGE_VER = '1.0.38';
+// ---- 页面版本自检：引擎比页面新时才提示刷新（可点✕关闭/30秒自动收起，点击刷新不打断播放） ----
+const PAGE_VER = '1.0.39';
 let verTipShown = false;
+function verNewer(a, b) { // 语义化比较：a 是否比 b 新
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
 async function checkPageVer() {
   try {
     const r = await fetch('/api/update/status', { cache: 'no-store' });
     const j = await r.json();
-    if (j && j.version && j.version !== PAGE_VER && !verTipShown) {
-      verTipShown = true;
-      const b = document.createElement('button');
-      b.textContent = '🔄 服务已更新到 v' + j.version + '，点我刷新页面';
-      b.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:99999;padding:10px 16px;border-radius:10px;border:0;background:#6a5cff;color:#fff;font-size:13px;cursor:pointer;box-shadow:0 8px 24px rgba(20,30,60,.28)';
-      b.onclick = () => location.reload();
-      document.body.appendChild(b);
-    }
+    if (!j || !j.version) return;
+    if (!verNewer(j.version, PAGE_VER)) return; // 页面不比引擎旧：不提示
+    if (verTipShown) return;
+    try { if (sessionStorage.getItem('verTipDismissed') === j.version) return; } catch (e) {}
+    verTipShown = true;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:99999;display:flex;align-items:center;gap:8px;background:#6a5cff;color:#fff;border-radius:10px;padding:8px 10px 8px 14px;box-shadow:0 8px 24px rgba(20,30,60,.28);font-size:13px';
+    const txt = document.createElement('span');
+    txt.textContent = '🔄 服务已更新到 v' + j.version;
+    const b = document.createElement('button');
+    b.textContent = '点我刷新页面';
+    b.style.cssText = 'border:0;border-radius:8px;padding:6px 10px;background:rgba(255,255,255,.22);color:#fff;font-size:13px;cursor:pointer';
+    b.onclick = () => location.reload();
+    const x = document.createElement('button');
+    x.textContent = '✕';
+    x.title = '本次不再提示';
+    x.style.cssText = 'border:0;background:transparent;color:#fff;font-size:13px;cursor:pointer;opacity:.85;padding:2px 4px';
+    x.onclick = () => { try { sessionStorage.setItem('verTipDismissed', j.version); } catch (e) {} wrap.remove(); };
+    wrap.appendChild(txt); wrap.appendChild(b); wrap.appendChild(x);
+    document.body.appendChild(wrap);
+    setTimeout(() => { try { wrap.remove(); } catch (e) {} }, 30000); // 30 秒后自动收起，不长期挡着
   } catch (e) {}
 }
 setTimeout(checkPageVer, 8000);
