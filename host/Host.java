@@ -284,6 +284,7 @@ public class Host {
             }
         }
         for (Path dex : dexFiles) Files.deleteIfExists(dex);
+        try { fixSelfInvokes(out); } catch (Exception ex) { log("fixSelfInvokes: " + ex); }
         log("converted jar -> " + out.getFileName());
         return out;
     }
@@ -1341,6 +1342,176 @@ public class Host {
 
     static void sendError(HttpExchange ex, int code, String message) throws IOException {
         reply(ex, code, "application/json; charset=utf-8", new JSONObject().put("message", message).toString());
+    }
+
+    /* ---------- dex2jar 缺陷修复：invoke-super 被翻成 invokespecial 调用自己（无限递归/SOE） ----------
+       规则：Methodref 指向本类、非 <init>、非本类私有方法、且父类链上确有同名同描述符的【非静态】方法
+             → 把常量池里该 Methodref 的 class_index 改成本类父类（只动 2 字节，不碰任何代码）。 */
+    static void fixSelfInvokes(Path jar) throws Exception {
+        java.util.LinkedHashMap<String, byte[]> entries = new java.util.LinkedHashMap<>();
+        try (JarFile jf = new JarFile(jar.toFile())) {
+            Enumeration<JarEntry> en = jf.entries();
+            while (en.hasMoreElements()) {
+                JarEntry e = en.nextElement();
+                byte[] b;
+                try (InputStream in = jf.getInputStream(e)) { b = readAll(in); }
+                entries.put(e.getName(), b);
+            }
+        }
+        int fixedMethods = 0, fixedClasses = 0;
+        for (Map.Entry<String, byte[]> en : entries.entrySet()) {
+            if (!en.getKey().endsWith(".class")) continue;
+            int[] c = new int[1];
+            byte[] nb = fixClassBytes(en.getValue(), entries, c);
+            if (nb != null) { en.setValue(nb); fixedClasses++; fixedMethods += c[0]; }
+        }
+        if (fixedMethods == 0) return;
+        Path tmp = jar.resolveSibling(jar.getFileName().toString() + ".fixing");
+        try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(tmp))) {
+            for (Map.Entry<String, byte[]> en : entries.entrySet()) {
+                zos.putNextEntry(new ZipEntry(en.getKey()));
+                zos.write(en.getValue());
+                zos.closeEntry();
+            }
+        }
+        Files.move(tmp, jar, StandardCopyOption.REPLACE_EXISTING);
+        log("修复 dex2jar 自我调用: " + fixedClasses + " 类 / " + fixedMethods + " 方法");
+    }
+
+    static byte[] readAll(InputStream in) throws Exception {
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[65536];
+        int n;
+        while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+        return bos.toByteArray();
+    }
+
+    static int h1(byte[] d, int p) { return d[p] & 0xFF; }
+    static int h2(byte[] d, int p) { return ((d[p] & 0xFF) << 8) | (d[p + 1] & 0xFF); }
+    static int h4(byte[] d, int p) { return ((d[p] & 0xFF) << 24) | ((d[p + 1] & 0xFF) << 16) | ((d[p + 2] & 0xFF) << 8) | (d[p + 3] & 0xFF); }
+    static int skipAttrs(byte[] d, int p) { int ac = h2(d, p); p += 2; for (int i = 0; i < ac; i++) { int len = h4(d, p + 2); p += 6 + len; } return p; }
+
+    /** 父类链上是否有该"非静态"方法（从本 jar 或宿主自身资源取类字节解析，不加载类） */
+    static boolean superHasInstanceMethod(Map<String, byte[]> entries, String className, String name, String desc) {
+        String cur = className;
+        int guard = 0;
+        while (cur != null && guard++ < 40) {
+            byte[] bytes = entries.get(cur + ".class");
+            if (bytes == null) {
+                try (InputStream in = Host.class.getResourceAsStream("/" + cur + ".class")) {
+                    if (in != null) bytes = readAll(in);
+                } catch (Exception ex) { }
+            }
+            if (bytes == null) return false;
+            Map<String, Integer> methods = new HashMap<>();
+            String[] meta = parseMeta(bytes, methods);
+            if (meta == null) return false;
+            Integer acc = methods.get(name + desc);
+            if (acc != null) return (acc & 0x0008) == 0;
+            cur = meta[1];
+        }
+        return false;
+    }
+
+    /** 解析类文件的方法表与父类名：返回 [thisName, superName] */
+    static String[] parseMeta(byte[] d, Map<String, Integer> methods) {
+        try {
+            if (h4(d, 0) != 0xCAFEBABE) return null;
+            int p = 8;
+            int cpCount = h2(d, p); p += 2;
+            int[] tag = new int[cpCount];
+            String[] utf8 = new String[cpCount];
+            int[] a = new int[cpCount], b = new int[cpCount];
+            for (int i = 1; i < cpCount; i++) {
+                int t = h1(d, p); tag[i] = t; p++;
+                switch (t) {
+                    case 1: { int len = h2(d, p); p += 2; utf8[i] = new String(d, p, len, java.nio.charset.StandardCharsets.UTF_8); p += len; break; }
+                    case 3: case 4: p += 4; break;
+                    case 5: case 6: p += 8; i++; break;
+                    case 7: case 8: case 16: case 19: case 20: a[i] = h2(d, p); p += 2; break;
+                    case 15: p += 3; break;
+                    case 9: case 10: case 11: case 12: case 17: case 18: a[i] = h2(d, p); b[i] = h2(d, p + 2); p += 4; break;
+                    default: return null;
+                }
+            }
+            int thisIdx = h2(d, p + 2), superIdx = h2(d, p + 4);
+            String thisName = utf8[a[thisIdx]];
+            String superName = superIdx == 0 ? null : utf8[a[superIdx]];
+            p += 6;
+            int ic = h2(d, p); p += 2 + ic * 2;
+            int fc = h2(d, p); p += 2;
+            for (int i = 0; i < fc; i++) { p += 6; p = skipAttrs(d, p); }
+            int mc = h2(d, p); p += 2;
+            for (int i = 0; i < mc; i++) {
+                int acc = h2(d, p), ni = h2(d, p + 2), di = h2(d, p + 4);
+                p += 6;
+                p = skipAttrs(d, p);
+                if (utf8[ni] != null && utf8[di] != null) methods.put(utf8[ni] + utf8[di], acc);
+            }
+            return new String[]{thisName, superName};
+        } catch (Exception e) { return null; }
+    }
+
+    /** 修补单个类的字节；返回新字节或 null；count[0] 累加修复的方法数 */
+    static byte[] fixClassBytes(byte[] d, Map<String, byte[]> entries, int[] count) {
+        try {
+            if (h4(d, 0) != 0xCAFEBABE) return null;
+            int p = 8;
+            int cpCount = h2(d, p); p += 2;
+            int[] tag = new int[cpCount];
+            String[] utf8 = new String[cpCount];
+            int[] nameIdx = new int[cpCount], descIdx = new int[cpCount];
+            int[] refClass = new int[cpCount], refNat = new int[cpCount], refOff = new int[cpCount];
+            for (int i = 1; i < cpCount; i++) {
+                int t = h1(d, p); tag[i] = t; p++;
+                switch (t) {
+                    case 1: { int len = h2(d, p); p += 2; utf8[i] = new String(d, p, len, java.nio.charset.StandardCharsets.UTF_8); p += len; break; }
+                    case 3: case 4: p += 4; break;
+                    case 5: case 6: p += 8; i++; break;
+                    case 7: nameIdx[i] = h2(d, p); p += 2; break;
+                    case 8: case 16: case 19: case 20: p += 2; break;
+                    case 15: p += 3; break;
+                    case 9: case 10: case 11: case 12: case 17: case 18: {
+                        int x = h2(d, p), y = h2(d, p + 2);
+                        if (t == 10) { refClass[i] = x; refNat[i] = y; refOff[i] = p; }
+                        else { nameIdx[i] = x; descIdx[i] = y; }
+                        p += 4; break;
+                    }
+                    default: return null;
+                }
+            }
+            int thisIdx = h2(d, p + 2), superIdx = h2(d, p + 4);
+            if (superIdx == 0) return null;
+            String thisName = utf8[nameIdx[thisIdx]], superName = utf8[nameIdx[superIdx]];
+            p += 6;
+            int ic = h2(d, p); p += 2 + ic * 2;
+            int fc = h2(d, p); p += 2;
+            for (int i = 0; i < fc; i++) { p += 6; p = skipAttrs(d, p); }
+            int mc = h2(d, p); p += 2;
+            java.util.Set<String> privates = new java.util.HashSet<>();
+            for (int i = 0; i < mc; i++) {
+                int acc = h2(d, p), ni = h2(d, p + 2), di = h2(d, p + 4);
+                p += 6;
+                p = skipAttrs(d, p);
+                if ((acc & 0x0002) != 0 && utf8[ni] != null && utf8[di] != null) privates.add(utf8[ni] + utf8[di]);
+            }
+            boolean changed = false;
+            for (int i = 1; i < cpCount; i++) {
+                if (tag[i] != 10 || refClass[i] != thisIdx) continue;
+                int nt = refNat[i];
+                if (nt <= 0 || nt >= cpCount) continue;
+                int ni = nameIdx[nt], di = descIdx[nt];
+                if (ni <= 0 || di <= 0 || utf8[ni] == null || utf8[di] == null) continue;
+                String nm = utf8[ni], ds = utf8[di];
+                if (nm.equals("<init>") || privates.contains(nm + ds)) continue;
+                if (!superHasInstanceMethod(entries, superName, nm, ds)) continue;
+                d[refOff[i]] = (byte) ((superIdx >> 8) & 0xFF);
+                d[refOff[i] + 1] = (byte) (superIdx & 0xFF);
+                count[0]++;
+                changed = true;
+            }
+            return changed ? d : null;
+        } catch (Exception e) { return null; }
     }
 
     static void log(String msg) { System.out.println("[jar-host] " + msg); }

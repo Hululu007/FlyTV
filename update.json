@@ -1,10 +1,10 @@
 {
   "win": {
-    "version": "1.0.40",
-    "size": 61453025,
-    "md5": "38ded3ea3a7f133dc6e0bb6ec9b6e3f5",
-    "notes": "全屏改为整页进全屏（全屏下选集/弹幕/菜单全部可见可用）；全屏下控制条/顶栏鼠标动即现、约3秒淡出（暂停时不隐）；窗口模式控制条保持常驻。",
-    "url": "https://github.com/LanLanff/FlyTV/releases/download/v1.0.40/FlyTV-1.0.40-win.zip"
+    "version": "1.0.41",
+    "size": 61455104,
+    "md5": "6a8e5b7c702a2cd30eae64b54630143f",
+    "notes": "修复桌面端部分 jar 爬虫初始化崩溃（如双星等源：dex 转换把 super 调用错翻成自调用导致栈溢出）——转换后自动修正；全屏改为整页进全屏 + 全屏控制条自动隐藏。",
+    "url": "https://github.com/LanLanff/FlyTV/releases/download/v1.0.41/FlyTV-1.0.41-win.zip"
   },
   "apk": {
     "versionCode": 39,
