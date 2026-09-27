@@ -904,6 +904,11 @@ border: 1px solid var(--stroke); flex: none; position: relative; box-shadow: var
 .upd-track{height:8px;border-radius:6px;background:var(--chip-bg,rgba(128,128,128,.18));overflow:hidden;margin-top:14px}
 .upd-bar{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--accent2,#7c5cff),var(--accent,#4f8cff));transition:width .25s}
 .upd-pct{font-size:12px;color:var(--text3);margin-top:6px;text-align:right;min-height:16px}
+/* 整页全屏：控制条/顶栏鼠标动即现，3 秒无操作淡出（暂停时不隐） */
+.player .bar, .player .plyr__controls { transition: opacity .25s ease; }
+.player.fs-idle .bar, .player.fs-idle .plyr__controls { opacity: 0; pointer-events: none; }
+.player.fs-idle { cursor: none; }
+.player.fs-on .bar { position: absolute; left: 0; right: 0; top: 0; z-index: 50; }
 </style>
 <div class="upd-ovl" id="updOvl">
   <div class="upd-box">
@@ -2880,7 +2885,7 @@ function startPlayer(url, title, startMs, adoptHls, adoptMini) {
   }
   if (!plyr) {
     plyr = new Plyr(video, {
-    controls: ['play-large','play','progress','current-time','duration','pip','fullscreen'],
+    controls: ['play-large','play','progress','current-time','duration','pip'],
     seekTime: 10,
     tooltips: { controls: true, seek: true },
     hideControls: false,     // 控制条常驻显示（不随鼠标消失）
@@ -3124,6 +3129,7 @@ const TV_SVG = {
   prev: '<svg viewBox="0 0 20 20"><path d="M11.2 4.8v10.4L2.4 10zM18.6 4.8v10.4L9.8 10z"/></svg>',
   next: '<svg viewBox="0 0 20 20"><path d="M1.4 4.8v10.4L10.2 10zM8.8 4.8v10.4L17.6 10z"/></svg>',
   list: '<svg viewBox="0 0 20 20"><path d="M3 5.2h14V7H3zM3 9.1h14v1.8H3zM3 13h14v1.8H3z"/></svg>',
+  fs: '<svg viewBox="0 0 20 20"><path d="M3 3h6v2H5v4H3V3zm8 0h6v6h-2V5h-4V3zM3 11h2v4h4v2H3v-6zm12 0h2v6h-6v-2h4v-4z"/></svg>',
 };
 function injectPlyrControls() {
   const controls = $('playerPage').querySelector('.plyr__controls');
@@ -3148,6 +3154,9 @@ function injectPlyrControls() {
   if (pip && pip.parentNode === controls) controls.insertBefore(bSpeed, pip); else controls.appendChild(bSpeed);
   controls.insertBefore(bEps, bSpeed);
   controls.insertBefore(bDm, bEps);
+  // 最右：整页全屏（Plyr 自带全屏已从 controls 移除——它只全屏播放器容器，选集/弹幕会被挡在屏外）
+  const bFs = mk('btnFs', TV_SVG.fs, '全屏', togglePageFullscreen);
+  controls.appendChild(bFs);
   renderSpeedLabel();
   updateDmBtn();
   updatePnButtons();
@@ -3222,6 +3231,62 @@ function bindVolumeGestures() {
     if (Date.now() - volDragMovedAt < 350) { e.stopPropagation(); e.preventDefault(); }
   }, true);
 }
+// ---- 整页全屏（整个播放页进全屏：选集/弹幕/菜单都在屏内）+ 全屏下控制条自动隐藏 ----
+let fsIdleTimer = null;
+function togglePageFullscreen() {
+  const p = $('playerPage');
+  if (!p) return;
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement || null;
+  if (fsEl) {
+    try { const ex = document.exitFullscreen || document.webkitExitFullscreen; ex.call(document); } catch (e) {}
+  } else {
+    try { const rq = p.requestFullscreen || p.webkitRequestFullscreen; const r = rq.call(p); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+  }
+}
+function fsShowUI() {
+  const p = $('playerPage'); if (!p) return;
+  p.classList.remove('fs-idle');
+  clearTimeout(fsIdleTimer);
+  fsIdleTimer = setTimeout(fsHideUI, 3000);
+}
+function fsHideUI() {
+  const p = $('playerPage'); if (!p || !p.classList.contains('fs-on')) return;
+  try { const v = $('video'); if (v && v.paused) { fsShowUI(); return; } } catch (e) {}
+  try { if (document.querySelector('#epsDrawer.show') || document.querySelector('.speed-menu.show')) { fsShowUI(); return; } } catch (e) {}
+  p.classList.add('fs-idle');
+}
+function onFullscreenChange() {
+  const p = $('playerPage'); if (!p) return;
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement || null;
+  // Plyr 容器（键盘快捷键 f 等）触发的全屏 → 换成整页全屏，保证选集/弹幕在屏内
+  if (fsEl && fsEl !== p && p.contains(fsEl)) {
+    try { const ex = document.exitFullscreen || document.webkitExitFullscreen; ex.call(document); } catch (e) {}
+    setTimeout(() => { try { togglePageFullscreen(); } catch (e) {} }, 80);
+    return;
+  }
+  const on = !!(fsEl && fsEl === p);
+  const b = $('btnFs');
+  if (on) {
+    p.classList.add('fs-on');
+    if (b) b.title = '退出全屏';
+    fsShowUI(); // 进入全屏先显示，3 秒后淡出
+  } else {
+    p.classList.remove('fs-on');
+    p.classList.remove('fs-idle');
+    clearTimeout(fsIdleTimer);
+    if (b) b.title = '全屏';
+  }
+}
+(function bindFsWatch() {
+  const p = $('playerPage');
+  if (!p || p._fsBound) return;
+  p._fsBound = true;
+  ['mousemove', 'mousedown', 'touchstart', 'click'].forEach(ev => {
+    p.addEventListener(ev, () => { try { if (p.classList.contains('fs-on')) fsShowUI(); } catch (e) {} }, { passive: true });
+  });
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+})();
 // ---- 大屏双击播放/暂停：绑在固定的播放页容器上（元素搬家/重建都不受影响） ----
 // 单击不动作（避免鼠标/遥控点选时误触暂停）；用捕获阶段，抢在 Plyr 的双击全屏处理之前
 function bindBoxClickToggle() {
@@ -3275,6 +3340,8 @@ function destroyPlayer(keepHls) {
 function closePlayer() {
   // 取消待执行的自动重试，防止"返回后又被拉回播放页"
   if (playCtx && playCtx.retryTimer) { clearTimeout(playCtx.retryTimer); playCtx.retryTimer = null; }
+  // 退出播放页时若还在全屏，一并退出（否则整页全屏会罩在黑屏上）
+  try { if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } } catch (e) {}
   let backMs = 0;
   try { const bv = $('video'); if (bv && bv.currentTime > 0) backMs = Math.floor(bv.currentTime * 1000); } catch (e) {}
   const fin = playCtx ? { flag: playCtx.flag, epUrl: playCtx.epUrl, epName: playCtx.epName, resolved: playCtx.resolved || '', vodId: playCtx.vodId || '', vodName: playCtx.vodName || '', site: playCtx.site || '' } : null;
@@ -3414,7 +3481,7 @@ async function panKeyPull() {
   } catch (e) { toast('拉取失败: ' + (e && e.message ? e.message : e)); }
 }
 // ---- 页面版本自检：引擎比页面新时才提示刷新（可点✕关闭/30秒自动收起，点击刷新不打断播放） ----
-const PAGE_VER = '1.0.39';
+const PAGE_VER = '1.0.40';
 let verTipShown = false;
 function verNewer(a, b) { // 语义化比较：a 是否比 b 新
   const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
